@@ -1,19 +1,22 @@
 #![feature(box_syntax)]
 
 extern crate digest;
+extern crate picnic;
 extern crate sha2;
 extern crate walkdir;
 
 mod fingerprint;
 
+use fingerprint::*;
+use picnic::{Dictionary, Ranker};
+use std::cmp::Reverse;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::env;
+use std::process;
 use walkdir::DirEntry;
 
 fn main() {
-    use fingerprint::*;
-    use std::collections::HashMap;
-    use std::env;
-    use std::process;
-    use std::cmp::Reverse;
 
     let root = match env::args().nth(1) {
         Some(root) => root,
@@ -49,6 +52,10 @@ fn main() {
         }
     }
 
+    let dictionary = read_dict("/usr/share/dict/words");
+    let dictionary = SetDictionary(dictionary.split_whitespace().collect());
+    let ranker = Ranker::new(dictionary);
+
     for (_, mut paths) in files_by_fingerprint {
         if paths.len() > 1 {
             let mut paths: Vec<_> = paths
@@ -59,7 +66,7 @@ fn main() {
             // We reverse this comparison because it is desirable to retain files with 
             // more descriptive names rather than files with less descriptive names.
             // Descriptive names are usually longer.
-            paths.sort_by_key(|path| Reverse(path.len()));
+            paths.sort_by_key(|path| Reverse(ranker.rank(path)));
 
             for path in paths.into_iter().skip(1) {
                 println!("{}", path);
@@ -73,4 +80,17 @@ fn list_files(root: &str) -> impl Iterator<Item = DirEntry> {
     WalkDir::new(root).into_iter()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file())
+}
+
+fn read_dict(s: &str) -> String {
+    use std::fs;
+    fs::read_to_string(s).unwrap()
+}
+
+struct SetDictionary<'a>(HashSet<&'a str>);
+
+impl<'a> Dictionary for SetDictionary<'a> {
+    fn contains(&self, s: &str) -> bool {
+        self.0.contains(s)
+    }
 }
