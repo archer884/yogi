@@ -17,12 +17,11 @@ use std::process;
 use walkdir::DirEntry;
 
 fn main() {
-
     let root = match env::args().nth(1) {
         Some(root) => root,
         None => {
             eprintln!("Please provide a root directory");
-            process::exit(1);        
+            process::exit(1);
         }
     };
 
@@ -62,8 +61,8 @@ fn main() {
                 .into_iter()
                 .map(|path| path.display().to_string())
                 .collect();
-            
-            // We reverse this comparison because it is desirable to retain files with 
+
+            // We reverse this comparison because it is desirable to retain files with
             // more descriptive names rather than files with less descriptive names.
             // Descriptive names are usually longer.
             paths.sort_by_key(|path| Reverse(ranker.rank(path)));
@@ -77,7 +76,8 @@ fn main() {
 
 fn list_files(root: &str) -> impl Iterator<Item = DirEntry> {
     use walkdir::WalkDir;
-    WalkDir::new(root).into_iter()
+    WalkDir::new(root)
+        .into_iter()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file())
 }

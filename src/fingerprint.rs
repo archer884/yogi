@@ -59,7 +59,7 @@ impl Fingerprint {
 
 fn hash(mut stream: impl Read) -> io::Result<Vec<u8>> {
     use sha2::Sha256;
-    use digest::{Input, FixedOutput};
+    use digest::{FixedOutput, Input};
 
     // We need box emplacement here because, otherwise, it blows the stack.
     let mut buf = box [0u8; MAX_SIZE as usize];
