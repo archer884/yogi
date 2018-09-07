@@ -51,7 +51,7 @@ fn main() {
         }
     }
 
-    let dictionary = read_dict("/usr/share/dict/words");
+    let dictionary = include_str!("../resource/enable1.txt");
     let dictionary = SetDictionary(dictionary.split_whitespace().collect());
     let ranker = Ranker::new(dictionary);
 
@@ -80,11 +80,6 @@ fn list_files(root: &str) -> impl Iterator<Item = DirEntry> {
         .into_iter()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file())
-}
-
-fn read_dict(s: &str) -> String {
-    use std::fs;
-    fs::read_to_string(s).unwrap()
 }
 
 struct SetDictionary<'a>(HashSet<&'a str>);
