@@ -28,11 +28,12 @@ fn main() {
     }
 
     let mut files_by_fingerprint = HashMap::new();
-    for (_, paths) in files_by_partial_fingerprint {
+    for (_, mut paths) in files_by_partial_fingerprint {
         if paths.len() < 2 {
             continue;
         }
 
+        paths.sort();
         for path in paths {
             if let Ok(fingerprint) = Fingerprint::from_path(&path) {
                 files_by_fingerprint
@@ -43,11 +44,13 @@ fn main() {
         }
     }
 
-    let duplicate_paths = files_by_fingerprint
+    let mut duplicate_paths: Vec<_> = files_by_fingerprint
         .into_iter()
         .map(|(_, paths)| paths)
-        .filter(|x| x.len() > 1);
+        .filter(|x| x.len() > 1)
+        .collect();
 
+    duplicate_paths.sort_by(|left, right| left.cmp(&right));
     for path_set in duplicate_paths {
         let paths: Vec<_> = path_set
             .into_iter()
