@@ -1,10 +1,5 @@
 #![feature(box_syntax)]
 
-extern crate digest;
-extern crate picnic;
-extern crate sha2;
-extern crate walkdir;
-
 mod fingerprint;
 
 use fingerprint::*;
@@ -55,7 +50,7 @@ fn main() {
     let dictionary = SetDictionary(dictionary.split_whitespace().collect());
     let ranker = Ranker::new(dictionary);
 
-    for (_, mut paths) in files_by_fingerprint {
+    for (_, paths) in files_by_fingerprint {
         if paths.len() > 1 {
             let mut paths: Vec<_> = paths
                 .into_iter()

@@ -1,7 +1,7 @@
 use std::io::{self, Read};
 use std::path::Path;
 
-const MAX_SIZE: u64 = 0x800000;
+const MAX_SIZE: u64 = 0x0080_0000;
 
 #[derive(Debug, Eq, PartialEq, Hash)]
 pub struct PartialFingerprint(u64);
@@ -9,7 +9,6 @@ pub struct PartialFingerprint(u64);
 impl PartialFingerprint {
     pub fn from_path<T: AsRef<Path>>(path: T) -> io::Result<Self> {
         use std::fs::File;
-
         let file = File::open(path)?;
         let meta = file.metadata()?;
         Ok(PartialFingerprint(meta.len()))
