@@ -77,7 +77,11 @@ fn get_selection(paths: &[(PathBuf, String)]) -> Option<usize> {
     for (idx, path) in paths.into_iter().map(|(_, x)| x).enumerate() {
         println!("{}: {}", idx, path);
     }
-    read_number()
+    
+    match read_number() {
+        Some(idx) if idx < paths.len() => Some(idx),
+        _ => None,
+    }
 }
 
 fn read_number() -> Option<usize> {
