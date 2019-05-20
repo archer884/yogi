@@ -85,7 +85,7 @@ fn read_number() -> Option<usize> {
     let mut buf = String::new();
     let handle = io::stdin();
     handle.read_line(&mut buf).ok()?;
-    buf.parse().ok()
+    buf.trim().parse().ok()
 }
 
 fn list_files(root: &str) -> impl Iterator<Item = DirEntry> {
