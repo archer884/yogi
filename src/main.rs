@@ -1,15 +1,12 @@
-#![feature(box_syntax)]
-
 mod fingerprint;
 
+use std::fs;
 use fingerprint::*;
-use picnic::{Dictionary, Ranker};
-use std::cmp::Reverse;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::env;
 use std::process;
 use walkdir::DirEntry;
+use std::path::PathBuf;
 
 fn main() {
     let root = match env::args().nth(1) {
@@ -46,27 +43,49 @@ fn main() {
         }
     }
 
-    let dictionary = include_str!("../resource/enable1.txt");
-    let dictionary = SetDictionary(dictionary.split_whitespace().collect());
-    let ranker = Ranker::new(dictionary);
+    let duplicate_paths = files_by_fingerprint
+        .into_iter()
+        .map(|(_, paths)| paths)
+        .filter(|x| x.len() > 1);
 
-    for (_, paths) in files_by_fingerprint {
-        if paths.len() > 1 {
-            let mut paths: Vec<_> = paths
+    for path_set in duplicate_paths {
+        let paths: Vec<_> = path_set
+            .into_iter()
+            .map(|path| {
+                let display = path.display().to_string();
+                (path, display)
+            })
+            .collect();
+
+        if let Some(retain) = get_selection(&paths) {
+            let paths_to_remove = paths
                 .into_iter()
-                .map(|path| path.display().to_string())
-                .collect();
+                .enumerate()
+                .filter(|&(idx, _)| retain != idx)
+                .map(|(_, x)| x);
 
-            // We reverse this comparison because it is desirable to retain files with
-            // more descriptive names rather than files with less descriptive names.
-            // Descriptive names are usually longer.
-            paths.sort_by_key(|path| Reverse(ranker.rank(path)));
-
-            for path in paths.into_iter().skip(1) {
-                println!("{}", path);
+            for (path, display) in paths_to_remove {
+                let _ = fs::remove_file(path);
+                println!("Removed: {}", display);
             }
         }
     }
+}
+
+fn get_selection(paths: &[(PathBuf, String)]) -> Option<usize> {
+    println!("Select a file to keep:");
+    for (idx, path) in paths.into_iter().map(|(_, x)| x).enumerate() {
+        println!("{}: {}", idx, path);
+    }
+    read_number()
+}
+
+fn read_number() -> Option<usize> {
+    use std::io;
+    let mut buf = String::new();
+    let handle = io::stdin();
+    handle.read_line(&mut buf).ok()?;
+    buf.parse().ok()
 }
 
 fn list_files(root: &str) -> impl Iterator<Item = DirEntry> {
@@ -75,12 +94,4 @@ fn list_files(root: &str) -> impl Iterator<Item = DirEntry> {
         .into_iter()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file())
-}
-
-struct SetDictionary<'a>(HashSet<&'a str>);
-
-impl<'a> Dictionary for SetDictionary<'a> {
-    fn contains(&self, s: &str) -> bool {
-        self.0.contains(s)
-    }
 }
