@@ -65,9 +65,9 @@ fn main() {
                 println!("Removed: {}", display);
             }
         } else if let Some((_, display)) = paths.next() {
-            println!("{}", display);
+            println!("Path: {}", display);
             for (_, display) in paths {
-                println!("  {}", display);
+                println!("    {}", display);
             }
         }
     }
