@@ -3,22 +3,25 @@ mod fingerprint;
 use std::fs;
 use fingerprint::*;
 use std::collections::HashMap;
-use std::env;
-use std::process;
 use walkdir::DirEntry;
-use std::path::PathBuf;
+use structopt::StructOpt;
+
+/// Examine a directory for duplicated files and remove them.
+#[derive(Clone, Debug, StructOpt)]
+struct Opt {
+    /// The root path to be examined
+    path: String,
+
+    /// Remove duplicate files
+    #[structopt(short = "f", long = "force")]
+    force: bool,    
+}
+
 
 fn main() {
-    let root = match env::args().nth(1) {
-        Some(root) => root,
-        None => {
-            eprintln!("Please provide a root directory");
-            process::exit(1);
-        }
-    };
-
+    let Opt{ path, force } = Opt::from_args();
     let mut files_by_partial_fingerprint = HashMap::new();
-    for file in list_files(&root) {
+    for file in list_files(&path) {
         if let Ok(partial) = PartialFingerprint::from_path(file.path()) {
             files_by_partial_fingerprint
                 .entry(partial)
@@ -60,39 +63,13 @@ fn main() {
             })
             .collect();
 
-        if let Some(retain) = get_selection(&paths) {
-            let paths_to_remove = paths
-                .into_iter()
-                .enumerate()
-                .filter(|&(idx, _)| retain != idx)
-                .map(|(_, x)| x);
-
-            for (path, display) in paths_to_remove {
+        for (path, display) in paths.into_iter().skip(1) {
+            if force {
                 let _ = fs::remove_file(path);
                 println!("Removed: {}", display);
             }
         }
     }
-}
-
-fn get_selection(paths: &[(PathBuf, String)]) -> Option<usize> {
-    println!("Select a file to keep:");
-    for (idx, path) in paths.into_iter().map(|(_, x)| x).enumerate() {
-        println!("{}: {}", idx, path);
-    }
-    
-    match read_number() {
-        Some(idx) if idx < paths.len() => Some(idx),
-        _ => None,
-    }
-}
-
-fn read_number() -> Option<usize> {
-    use std::io;
-    let mut buf = String::new();
-    let handle = io::stdin();
-    handle.read_line(&mut buf).ok()?;
-    buf.trim().parse().ok()
 }
 
 fn list_files(root: &str) -> impl Iterator<Item = DirEntry> {

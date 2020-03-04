@@ -64,7 +64,7 @@ fn hash(mut stream: impl Read) -> io::Result<Vec<u8>> {
     let len = stream.read(&mut *buf)?;
 
     let mut hasher = Sha256::default();
-    hasher.process(&buf[..len]);
+    hasher.input(&buf[..len]);
 
     Ok(hasher.fixed_result().into_iter().collect())
 }
