@@ -57,8 +57,8 @@ impl Fingerprint {
 }
 
 fn hash(mut stream: impl Read) -> io::Result<Vec<u8>> {
-    use sha2::Sha256;
     use digest::{FixedOutput, Input};
+    use sha2::Sha256;
 
     let mut buf = vec![0u8; MAX_SIZE as usize];
     let len = stream.read(&mut *buf)?;

@@ -1,10 +1,10 @@
 mod fingerprint;
 
-use std::fs;
 use fingerprint::*;
 use std::collections::HashMap;
-use walkdir::DirEntry;
+use std::fs;
 use structopt::StructOpt;
+use walkdir::DirEntry;
 
 /// Examine a directory for duplicated files and remove them.
 #[derive(Clone, Debug, StructOpt)]
@@ -14,12 +14,11 @@ struct Opt {
 
     /// Remove duplicate files
     #[structopt(short = "f", long = "force")]
-    force: bool,    
+    force: bool,
 }
 
-
 fn main() {
-    let Opt{ path, force } = Opt::from_args();
+    let Opt { path, force } = Opt::from_args();
     let mut files_by_partial_fingerprint = HashMap::new();
     for file in list_files(&path) {
         if let Ok(partial) = PartialFingerprint::from_path(file.path()) {
@@ -55,18 +54,20 @@ fn main() {
 
     duplicate_paths.sort_by(|left, right| left.cmp(&right));
     for path_set in duplicate_paths {
-        let paths: Vec<_> = path_set
-            .into_iter()
-            .map(|path| {
-                let display = path.display().to_string();
-                (path, display)
-            })
-            .collect();
+        let mut paths = path_set.into_iter().map(|path| {
+            let display = path.display().to_string();
+            (path, display)
+        });
 
-        for (path, display) in paths.into_iter().skip(1) {
-            if force {
+        if force {
+            for (path, display) in paths.skip(1) {
                 let _ = fs::remove_file(path);
                 println!("Removed: {}", display);
+            }
+        } else if let Some((_, display)) = paths.next() {
+            println!("{}", display);
+            for (_, display) in paths {
+                println!("  {}", display);
             }
         }
     }
