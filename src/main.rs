@@ -2,7 +2,7 @@ mod fingerprint;
 
 use fingerprint::*;
 use std::collections::HashMap;
-use std::fs;
+use std::{fs, io};
 use structopt::StructOpt;
 use walkdir::DirEntry;
 
@@ -17,16 +17,14 @@ struct Opt {
     force: bool,
 }
 
-fn main() {
+fn main() -> io::Result<()> {
     let Opt { path, force } = Opt::from_args();
     let mut files_by_partial_fingerprint = HashMap::new();
     for file in list_files(&path) {
-        if let Ok(partial) = PartialFingerprint::from_path(file.path()) {
-            files_by_partial_fingerprint
-                .entry(partial)
-                .or_insert_with(Vec::new)
-                .push(file.path().to_owned());
-        }
+        files_by_partial_fingerprint
+            .entry(PartialFingerprint::from_path(file.path())?)
+            .or_insert_with(Vec::new)
+            .push(file.path().to_owned());
     }
 
     let mut files_by_fingerprint = HashMap::new();
@@ -37,12 +35,10 @@ fn main() {
 
         paths.sort();
         for path in paths {
-            if let Ok(fingerprint) = Fingerprint::from_path(&path) {
-                files_by_fingerprint
-                    .entry(fingerprint)
-                    .or_insert_with(Vec::new)
-                    .push(path);
-            }
+            files_by_fingerprint
+                .entry(Fingerprint::from_path(&path)?)
+                .or_insert_with(Vec::new)
+                .push(path);
         }
     }
 
@@ -61,7 +57,7 @@ fn main() {
 
         if force {
             for (path, display) in paths.skip(1) {
-                let _ = fs::remove_file(path);
+                fs::remove_file(path)?;
                 println!("Removed: {}", display);
             }
         } else if let Some((_, display)) = paths.next() {
@@ -71,6 +67,8 @@ fn main() {
             }
         }
     }
+
+    Ok(())
 }
 
 fn list_files(root: &str) -> impl Iterator<Item = DirEntry> {
