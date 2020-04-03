@@ -1,5 +1,5 @@
+use hashbrown::HashMap;
 use imprint::{Imprint, Metadata};
-use std::collections::HashMap;
 use std::convert::TryInto;
 use std::{fs, io};
 use structopt::StructOpt;
