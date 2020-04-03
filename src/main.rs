@@ -1,7 +1,6 @@
-mod fingerprint;
-
-use fingerprint::*;
+use imprint::{Imprint, Metadata};
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::{fs, io};
 use structopt::StructOpt;
 use walkdir::DirEntry;
@@ -19,30 +18,34 @@ struct Opt {
 
 fn main() -> io::Result<()> {
     let Opt { path, force } = Opt::from_args();
-    let mut files_by_partial_fingerprint = HashMap::new();
+
+    let mut files_by_len = HashMap::new();
     for file in list_files(&path) {
-        files_by_partial_fingerprint
-            .entry(PartialFingerprint::from_path(file.path())?)
+        let metadata = Metadata::from_path(file.path())?;
+        files_by_len
+            .entry(metadata.len())
             .or_insert_with(Vec::new)
-            .push(file.path().to_owned());
+            .push(metadata);
     }
 
-    let mut files_by_fingerprint = HashMap::new();
-    for (_, mut paths) in files_by_partial_fingerprint {
-        if paths.len() < 2 {
+    let mut files_by_imprint = HashMap::new();
+    for (_, mut files) in files_by_len {
+        if files.len() < 2 {
             continue;
         }
 
-        paths.sort();
-        for path in paths {
-            files_by_fingerprint
-                .entry(Fingerprint::from_path(&path)?)
+        files.sort_by(|a, b| a.path().cmp(b.path()));
+        for file in files {
+            let imprint: Imprint = file.try_into()?;
+            let path = imprint.path().to_owned();
+            files_by_imprint
+                .entry(imprint)
                 .or_insert_with(Vec::new)
                 .push(path);
         }
     }
 
-    let mut duplicate_paths: Vec<_> = files_by_fingerprint
+    let mut duplicate_paths: Vec<_> = files_by_imprint
         .into_iter()
         .map(|(_, paths)| paths)
         .filter(|x| x.len() > 1)

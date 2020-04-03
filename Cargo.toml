@@ -5,7 +5,7 @@ authors = ["J/A <archer884@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-digest = "0.8.1"
-sha2 = "0.8.1"
-structopt = "0.3.11"
-walkdir = "2.3.1"
+hashbrown = "0.7"
+imprint = { git = "https://github.com/archer884/imprint" }
+structopt = "0.3"
+walkdir = "2.3"
