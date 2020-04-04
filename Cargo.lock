@@ -161,7 +161,7 @@ dependencies = [
 [[package]]
 name = "imprint"
 version = "0.1.0"
-source = "git+https://github.com/archer884/imprint#92fe57a3932df2a7f115a9556bd48c23ee62a355"
+source = "git+https://github.com/archer884/imprint#211b0ca53329c997f3d2b361660b22b6b83f6729"
 dependencies = [
  "sha2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

@@ -1,7 +1,6 @@
 use hashbrown::HashMap;
-use imprint::{Imprint, Metadata};
-use std::convert::TryInto;
-use std::{fs, io};
+use imprint::Imprint;
+use std::{fs, io, path::PathBuf};
 use structopt::StructOpt;
 use walkdir::DirEntry;
 
@@ -21,11 +20,11 @@ fn main() -> io::Result<()> {
 
     let mut files_by_len = HashMap::new();
     for file in list_files(&path) {
-        let metadata = Metadata::from_path(file.path())?;
+        let metadata = file.path().metadata()?;
         files_by_len
             .entry(metadata.len())
             .or_insert_with(Vec::new)
-            .push(metadata);
+            .push(file);
     }
 
     let mut files_by_imprint = HashMap::new();
@@ -36,12 +35,11 @@ fn main() -> io::Result<()> {
 
         files.sort_by(|a, b| a.path().cmp(b.path()));
         for file in files {
-            let imprint: Imprint = file.try_into()?;
-            let path = imprint.path().to_owned();
+            let imprint = Imprint::new(file.path())?;
             files_by_imprint
                 .entry(imprint)
                 .or_insert_with(Vec::new)
-                .push(path);
+                .push(file.path().to_owned());
         }
     }
 
@@ -52,26 +50,36 @@ fn main() -> io::Result<()> {
         .collect();
 
     duplicate_paths.sort_by(|left, right| left.cmp(&right));
-    for path_set in duplicate_paths {
-        let mut paths = path_set.into_iter().map(|path| {
-            let display = path.display().to_string();
-            (path, display)
-        });
 
-        if force {
-            for (path, display) in paths.skip(1) {
-                fs::remove_file(path)?;
-                println!("Removed: {}", display);
-            }
-        } else if let Some((_, display)) = paths.next() {
-            println!("Path: {}", display);
-            for (_, display) in paths {
-                println!("    {}", display);
-            }
-        }
+    if force {
+        remove_duplicates(duplicate_paths)?;
+    } else {
+        show_duplicates(duplicate_paths);
     }
 
     Ok(())
+}
+
+fn remove_duplicates(grouped_duplicates: impl IntoIterator<Item = Vec<PathBuf>>) -> io::Result<()> {
+    let mut count = 0;
+    for group in grouped_duplicates {
+        count += group
+            .into_iter()
+            .skip(1)
+            .try_fold(0, |count, path| fs::remove_file(path).map(|_| count + 1))?;
+    }
+    println!("Removed {} files", count);
+    Ok(())
+}
+
+fn show_duplicates(grouped_duplicates: impl IntoIterator<Item = Vec<PathBuf>>) {
+    for group in grouped_duplicates {
+        let mut paths = group.into_iter();
+        if let Some(path) = paths.next() {
+            println!("Path: {}", path.display());
+        }
+        paths.for_each(|path| println!("    {}", path.display()));
+    }
 }
 
 fn list_files(root: &str) -> impl Iterator<Item = DirEntry> {
