@@ -1,25 +1,16 @@
+mod opt;
+
 use hashbrown::HashMap;
 use imprint::Imprint;
 use std::{fs, io, path::PathBuf};
-use structopt::StructOpt;
 use walkdir::DirEntry;
-
-/// Examine a directory for duplicated files and remove them.
-#[derive(Clone, Debug, StructOpt)]
-struct Opt {
-    /// The root path to be examined
-    path: String,
-
-    /// Remove duplicate files
-    #[structopt(short = "f", long = "force")]
-    force: bool,
-}
+use opt::Opt;
 
 fn main() -> io::Result<()> {
-    let Opt { path, force } = Opt::from_args();
+    let opt = Opt::from_args();
 
     let mut files_by_len = HashMap::new();
-    for file in list_files(&path) {
+    for file in list_files(opt.path()) {
         let metadata = file.path().metadata()?;
         files_by_len
             .entry(metadata.len())
@@ -51,7 +42,7 @@ fn main() -> io::Result<()> {
 
     duplicate_paths.sort_by(|left, right| left.cmp(&right));
 
-    if force {
+    if opt.force() {
         remove_duplicates(duplicate_paths)?;
     } else {
         show_duplicates(duplicate_paths);
