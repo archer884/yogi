@@ -8,9 +8,13 @@ pub struct Opt {
     /// Defaults to "." if no value is provided.
     path: Option<String>,
 
+    /// Additional paths (files in root path will be preferred)
+    #[structopt(short, long)]
+    pub compare: Vec<String>,
+
     /// Remove duplicate files.
     #[structopt(short = "f", long = "force")]
-    force: bool,
+    pub force: bool,
 }
 
 impl Opt {
@@ -20,9 +24,5 @@ impl Opt {
 
     pub fn path(&self) -> &str {
         self.path.as_ref().map(AsRef::as_ref).unwrap_or(".")
-    }
-
-    pub fn force(&self) -> bool {
-        self.force
     }
 }
