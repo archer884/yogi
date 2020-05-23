@@ -7,11 +7,11 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 use walkdir::{DirEntry, WalkDir};
 
-struct NestingFilter {
+struct ExclusionFilter {
     exclude: PathBuf,
 }
 
-impl NestingFilter {
+impl ExclusionFilter {
     fn from_path(path: impl AsRef<Path>) -> Self {
         let exclude = fs::canonicalize(path.as_ref()).unwrap_or_else(|_| path.as_ref().into());
         Self { exclude }
@@ -64,18 +64,38 @@ fn single_tree(path: &str, force: bool) -> io::Result<()> {
         }
     }
 
-    let mut duplicate_paths: Vec<_> = files_by_imprint
+    let mut grouped_duplicates: Vec<_> = files_by_imprint
         .into_iter()
         .map(|(_, paths)| paths)
         .filter(|x| x.len() > 1)
         .collect();
 
-    duplicate_paths.sort_by(|left, right| left.cmp(&right));
+    grouped_duplicates.sort_by(|left, right| left.cmp(&right));
 
     if force {
-        remove_duplicates(duplicate_paths)?;
+        let result = grouped_duplicates
+            .into_iter()
+            .map(|group| group.into_iter().skip(1))
+            .flatten()
+            .try_fold(0, |count, path| {
+                fs::remove_file(path).map_err(|e| (count, e))?;
+                Ok(count + 1)
+            });
+
+        match result {
+            Ok(count) => println!("Removed {} files", count),
+            Err((count, e)) => eprintln!("Removed {} files but failed on {}", count, e),
+        }
     } else {
-        show_duplicates(duplicate_paths);
+        for group in grouped_duplicates {
+            let (primary, duplicates) = group
+                .split_first()
+                .expect("We should already have filtered out small groups");
+            println!("Path: {}", primary.display());
+            duplicates
+                .into_iter()
+                .for_each(|path| println!("   {}", path.display()));
+        }
     }
 
     Ok(())
@@ -116,28 +136,6 @@ fn multi_tree(path: &str, compare: &[impl AsRef<Path>], force: bool) -> io::Resu
     Ok(())
 }
 
-fn remove_duplicates(grouped_duplicates: impl IntoIterator<Item = Vec<PathBuf>>) -> io::Result<()> {
-    let mut count = 0;
-    for group in grouped_duplicates {
-        count += group
-            .into_iter()
-            .skip(1)
-            .try_fold(0, |count, path| fs::remove_file(path).map(|_| count + 1))?;
-    }
-    println!("Removed {} files", count);
-    Ok(())
-}
-
-fn show_duplicates(grouped_duplicates: impl IntoIterator<Item = Vec<PathBuf>>) {
-    for group in grouped_duplicates {
-        let mut paths = group.into_iter();
-        if let Some(path) = paths.next() {
-            println!("Path: {}", path.display());
-        }
-        paths.for_each(|path| println!("    {}", path.display()));
-    }
-}
-
 fn list_files(root: impl AsRef<Path>) -> impl Iterator<Item = DirEntry> {
     WalkDir::new(root)
         .into_iter()
@@ -149,7 +147,7 @@ fn list_files_with_exclusion<'a>(
     root: impl AsRef<Path>,
     exclude: impl AsRef<Path> + 'a,
 ) -> impl Iterator<Item = DirEntry> + 'a {
-    let filter = NestingFilter::from_path(exclude.as_ref());
+    let filter = ExclusionFilter::from_path(exclude.as_ref());
     WalkDir::new(root)
         .into_iter()
         .filter_entry(move |entry| filter.is_valid(entry))
