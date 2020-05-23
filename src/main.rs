@@ -7,6 +7,27 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 use walkdir::{DirEntry, WalkDir};
 
+struct NestingFilter {
+    exclude: PathBuf,
+}
+
+impl NestingFilter {
+    fn from_path(path: impl AsRef<Path>) -> Self {
+        let exclude = fs::canonicalize(path.as_ref()).unwrap_or_else(|_| path.as_ref().into());
+        Self { exclude }
+    }
+
+    fn is_valid(&self, entry: &DirEntry) -> bool {
+        use std::borrow::Cow;
+        !entry.file_type().is_dir() || {
+            let path = fs::canonicalize(entry.path())
+                .map(Cow::from)
+                .unwrap_or_else(|_| Cow::from(entry.path()));
+            self.exclude != path
+        }
+    }
+}
+
 fn main() -> io::Result<()> {
     let opt = Opt::from_args();
     if opt.compare.is_empty() {
@@ -128,24 +149,12 @@ fn list_files_with_exclusion<'a>(
     root: impl AsRef<Path>,
     exclude: impl AsRef<Path> + 'a,
 ) -> impl Iterator<Item = DirEntry> + 'a {
+    let filter = NestingFilter::from_path(exclude.as_ref());
     WalkDir::new(root)
         .into_iter()
-        .filter_entry(move |entry| {
-            !entry.file_type().is_dir() || !are_canonically_equal(entry.path(), exclude.as_ref())
-        })
+        .filter_entry(move |entry| filter.is_valid(entry))
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file())
-}
-
-fn are_canonically_equal(left: &Path, right: &Path) -> bool {
-    use std::borrow::Cow;
-    let left = fs::canonicalize(left)
-        .map(Cow::from)
-        .unwrap_or_else(|_| Cow::from(left));
-    let right = fs::canonicalize(right)
-        .map(Cow::from)
-        .unwrap_or_else(|_| Cow::from(right));
-    left == right
 }
 
 fn build_filters(path: &str) -> (HashSet<u64>, HashSet<Imprint>) {
