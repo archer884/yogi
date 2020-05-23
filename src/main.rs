@@ -5,7 +5,7 @@ use imprint::Imprint;
 use opt::Opt;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
-use walkdir::DirEntry;
+use walkdir::{DirEntry, WalkDir};
 
 fn main() -> io::Result<()> {
     let opt = Opt::from_args();
@@ -61,15 +61,14 @@ fn single_tree(path: &str, force: bool) -> io::Result<()> {
 }
 
 fn multi_tree(path: &str, compare: &[impl AsRef<Path>], force: bool) -> io::Result<()> {
-    let (path_filter, length_filter, imprint_filter) = build_filters(path);
+    let (length_filter, imprint_filter) = build_filters(path);
 
     // Identify external duplicates
     let external_files = compare
         .into_iter()
-        .map(list_files)
+        .map(|root| list_files_with_exclusion(root, path))
         .flatten()
         .map(|file| file.path().to_owned())
-        .filter(|path| !path_filter.contains(path))
         .filter_map(|file| file.metadata().ok().map(|meta| (file, meta.len())));
     let external_files = external_files
         .filter(|(_, len)| length_filter.contains(len))
@@ -119,17 +118,41 @@ fn show_duplicates(grouped_duplicates: impl IntoIterator<Item = Vec<PathBuf>>) {
 }
 
 fn list_files(root: impl AsRef<Path>) -> impl Iterator<Item = DirEntry> {
-    use walkdir::WalkDir;
     WalkDir::new(root)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file())
 }
 
-fn build_filters(path: &str) -> (HashSet<PathBuf>, HashSet<u64>, HashSet<Imprint>) {
+fn list_files_with_exclusion<'a>(
+    root: impl AsRef<Path>,
+    exclude: impl AsRef<Path> + 'a,
+) -> impl Iterator<Item = DirEntry> + 'a {
+    WalkDir::new(root)
+        .into_iter()
+        .filter_entry(move |entry| {
+            !entry.file_type().is_dir() || !are_canonically_equal(entry.path(), exclude.as_ref())
+        })
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+}
+
+fn are_canonically_equal(left: &Path, right: &Path) -> bool {
+    use std::borrow::Cow;
+    let left = fs::canonicalize(left)
+        .map(Cow::from)
+        .unwrap_or_else(|_| Cow::from(left));
+    let right = fs::canonicalize(right)
+        .map(Cow::from)
+        .unwrap_or_else(|_| Cow::from(right));
+    left == right
+}
+
+fn build_filters(path: &str) -> (HashSet<u64>, HashSet<Imprint>) {
     let files: Vec<_> = list_files(path)
         .map(|file| file.path().to_owned())
         .collect();
+
     let length_filter: HashSet<_> = files
         .iter()
         .filter_map(|file| file.metadata().ok().map(|meta| meta.len()))
@@ -139,5 +162,5 @@ fn build_filters(path: &str) -> (HashSet<PathBuf>, HashSet<u64>, HashSet<Imprint
         .filter_map(|file| Imprint::new(file).ok())
         .collect();
 
-    (files.into_iter().collect(), length_filter, imprint_filter)
+    (length_filter, imprint_filter)
 }
