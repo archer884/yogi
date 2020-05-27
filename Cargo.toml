@@ -9,3 +9,6 @@ hashbrown = "0.7"
 imprint = { git = "https://github.com/archer884/imprint" }
 structopt = "0.3"
 walkdir = "2.3"
+
+[profile.release]
+lto = "thin"
