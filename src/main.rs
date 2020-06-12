@@ -1,4 +1,5 @@
 mod opt;
+mod rank;
 
 use hashbrown::{HashMap, HashSet};
 use imprint::Imprint;
@@ -38,6 +39,9 @@ fn main() -> io::Result<()> {
 }
 
 fn single_tree(path: &str, force: bool) -> io::Result<()> {
+    use rank::PathRanker;
+    use std::cmp::Reverse;
+
     let mut files_by_len = HashMap::new();
     for file in list_files(path) {
         let m = file.path().metadata()?;
@@ -70,7 +74,10 @@ fn single_tree(path: &str, force: bool) -> io::Result<()> {
         .filter(|x| x.len() > 1)
         .collect();
 
-    grouped_duplicates.sort_by(|left, right| left.cmp(&right));
+    let ranker = PathRanker::new();
+    for group in &mut grouped_duplicates {
+        group.sort_by_cached_key(|x| Reverse(ranker.rank(x)));
+    }
 
     if force {
         let result = grouped_duplicates
