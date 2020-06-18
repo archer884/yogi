@@ -15,7 +15,7 @@ impl PathRanker {
     pub fn new() -> Self {
         let words = include_str!("../resource/enable1.txt");
         Self {
-            dictionary: words.split_whitespace().collect()
+            dictionary: words.split_whitespace().collect(),
         }
     }
 

@@ -1,180 +1,89 @@
+mod format;
+mod multiple;
 mod opt;
 mod rank;
+mod single;
 
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use imprint::Imprint;
 use opt::Opt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{fs, io};
 use walkdir::{DirEntry, WalkDir};
-
-struct ExclusionFilter {
-    exclude: PathBuf,
-}
-
-impl ExclusionFilter {
-    fn from_path(path: impl AsRef<Path>) -> Self {
-        let exclude = fs::canonicalize(path.as_ref()).unwrap_or_else(|_| path.as_ref().into());
-        Self { exclude }
-    }
-
-    fn is_valid(&self, entry: &DirEntry) -> bool {
-        use std::borrow::Cow;
-        !entry.file_type().is_dir() || {
-            let path = fs::canonicalize(entry.path())
-                .map(Cow::from)
-                .unwrap_or_else(|_| Cow::from(entry.path()));
-            self.exclude != path
-        }
-    }
-}
 
 fn main() -> io::Result<()> {
     let opt = Opt::from_args();
     if opt.compare.is_empty() {
-        single_tree(opt.path(), opt.force)
+        single::process(opt.path(), opt.force)
     } else {
-        multi_tree(opt.path(), &opt.compare, opt.force)
+        multiple::process(opt.path(), &opt.compare, opt.force)
     }
 }
 
-fn single_tree(path: &str, force: bool) -> io::Result<()> {
-    use rank::PathRanker;
-    use std::cmp::Reverse;
-
-    let mut files_by_len = HashMap::new();
-    for file in list_files(path) {
-        let m = file.path().metadata()?;
-        files_by_len
-            .entry(m.len())
-            .or_insert_with(Vec::new)
-            .push(file);
-    }
-
-    let file_groups = files_by_len
-        .into_iter()
-        .map(|(_, group)| group)
-        .filter(|group| group.len() > 1);
-
-    let mut files_by_imprint = HashMap::new();
-    for mut group in file_groups {
-        group.sort_by(|a, b| a.path().cmp(b.path()));
-        for file in group {
-            let imprint = Imprint::new(file.path())?;
-            files_by_imprint
-                .entry(imprint)
-                .or_insert_with(Vec::new)
-                .push(file.path().to_owned());
-        }
-    }
-
-    let mut grouped_duplicates: Vec<_> = files_by_imprint
-        .into_iter()
-        .map(|(_, paths)| paths)
-        .filter(|x| x.len() > 1)
-        .collect();
-
-    let ranker = PathRanker::new();
-    for group in &mut grouped_duplicates {
-        group.sort_by_cached_key(|x| Reverse(ranker.rank(x)));
-    }
-
-    if force {
-        let result = grouped_duplicates
-            .into_iter()
-            .map(|group| group.into_iter().skip(1))
-            .flatten()
-            .try_fold(0, |count, path| {
-                fs::remove_file(path).map_err(|e| (count, e))?;
-                Ok(count + 1)
-            });
-
-        match result {
-            Ok(count) => println!("Removed {} files", count),
-            Err((count, e)) => eprintln!("Removed {} files but failed on {}", count, e),
-        }
-    } else {
-        for group in grouped_duplicates {
-            let (primary, duplicates) = group
-                .split_first()
-                .expect("We should already have filtered out small groups");
-            println!("Path: {}", primary.display());
-            duplicates
-                .into_iter()
-                .for_each(|path| println!("   {}", path.display()));
-        }
-    }
-
-    Ok(())
-}
-
-fn multi_tree(path: &str, compare: &[impl AsRef<Path>], force: bool) -> io::Result<()> {
-    let (length_filter, imprint_filter) = build_filters(path);
-
-    // Identify external duplicates
-    let external_files = compare
-        .into_iter()
-        .map(|root| list_files_with_exclusion(root, path))
-        .flatten()
-        .map(|file| file.path().to_owned())
-        .filter_map(|file| file.metadata().ok().map(|meta| (file, meta.len())));
-    let external_files = external_files
-        .filter(|(_, len)| length_filter.contains(len))
-        .filter_map(|(path, _)| Imprint::new(&path).ok().map(|imprint| (path, imprint)))
-        .filter(|(_, imprint)| imprint_filter.contains(imprint))
-        .map(|(path, _)| path);
-
-    if force {
-        let result = external_files.into_iter().try_fold(0, |count, path| {
-            fs::remove_file(path).map_err(|e| (count, e))?;
-            Ok(count + 1)
-        });
-
-        match result {
-            Ok(count) => println!("Removed {} files", count),
-            Err((count, e)) => eprintln!("Removed {} files but failed on {}", count, e),
-        }
-    } else {
-        for path in external_files {
-            println!("{}", path.display());
-        }
-    }
-
-    Ok(())
-}
-
-fn list_files(root: impl AsRef<Path>) -> impl Iterator<Item = DirEntry> {
+fn list_entries(root: impl AsRef<Path>) -> impl Iterator<Item = DirEntry> {
     WalkDir::new(root)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|entry| entry.file_type().is_file())
 }
 
-fn list_files_with_exclusion<'a>(
-    root: impl AsRef<Path>,
-    exclude: impl AsRef<Path> + 'a,
-) -> impl Iterator<Item = DirEntry> + 'a {
-    let filter = ExclusionFilter::from_path(exclude.as_ref());
-    WalkDir::new(root)
-        .into_iter()
-        .filter_entry(move |entry| filter.is_valid(entry))
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file())
+fn deconflict<'a>(
+    groups: impl IntoIterator<Item = (Imprint, Vec<&'a Path>)>,
+    metacache: &HashMap<&'a Path, u64>,
+) -> io::Result<(usize, u64)> {
+    let mut count = 0;
+    let mut size = 0;
+
+    let conflicts = groups.into_iter().flat_map(|x| x.1.into_iter().skip(1));
+    for path in conflicts {
+        count += 1;
+        size += metacache.get(path).cloned().unwrap_or_default();
+        fs::remove_file(path)?;
+    }
+
+    Ok((count, size))
 }
 
-fn build_filters(path: &str) -> (HashSet<u64>, HashSet<Imprint>) {
-    let files: Vec<_> = list_files(path)
-        .map(|file| file.path().to_owned())
-        .collect();
+fn pretty_print_conflicts<'a>(
+    groups: impl IntoIterator<Item = (Imprint, Vec<&'a Path>)>,
+    metacache: &HashMap<&'a Path, u64>,
+) -> io::Result<()> {
+    use format::{BytesFormatter, HexFormatter};
+    use std::io::Write;
 
-    let length_filter: HashSet<_> = files
-        .iter()
-        .filter_map(|file| file.metadata().ok().map(|meta| meta.len()))
-        .collect();
-    let imprint_filter: HashSet<_> = files
-        .iter()
-        .filter_map(|file| Imprint::new(file).ok())
-        .collect();
+    let handle = io::stdout();
+    let mut handle = handle.lock();
+    let mut count = 0;
+    let mut size = 0;
 
-    (length_filter, imprint_filter)
+    for (imprint, group) in groups {
+        // One of these files is NOT a duplicate; it's the primary.
+        let n = group.len() - 1;
+
+        count += n;
+        size += n as u64
+            * group
+                .first()
+                .and_then(|&path| metacache.get(path).cloned())
+                .unwrap_or_default();
+
+        writeln!(
+            handle,
+            "{:x}\n============================================================",
+            HexFormatter(&imprint.head)
+        )?;
+
+        for path in group {
+            writeln!(handle, "{}", path.display())?;
+        }
+        writeln!(handle)?;
+    }
+
+    writeln!(
+        handle,
+        "{} duplicates ({})",
+        count,
+        BytesFormatter::new(size)
+    )?;
+    Ok(())
 }
