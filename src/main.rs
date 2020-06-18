@@ -4,17 +4,36 @@ mod opt;
 mod rank;
 mod single;
 
-use hashbrown::HashMap;
 use imprint::Imprint;
 use opt::Opt;
 use std::path::Path;
+use std::time::SystemTime;
 use std::{fs, io};
 use walkdir::{DirEntry, WalkDir};
+
+type Metacache<'a> = hashbrown::HashMap<&'a Path, Meta>;
+
+#[derive(Clone, Debug)]
+struct Meta {
+    created: SystemTime,
+    len: u64,
+}
+
+impl From<fs::Metadata> for Meta {
+    fn from(meta: fs::Metadata) -> Self {
+        Self {
+            created: meta
+                .created()
+                .expect("Apparently this file was never created..."),
+            len: meta.len(),
+        }
+    }
+}
 
 fn main() -> io::Result<()> {
     let opt = Opt::from_args();
     if opt.compare.is_empty() {
-        single::process(opt.path(), opt.force)
+        single::process(opt.path(), opt.sort_order(), opt.force)
     } else {
         multiple::process(opt.path(), &opt.compare, opt.force)
     }
@@ -29,7 +48,7 @@ fn list_entries(root: impl AsRef<Path>) -> impl Iterator<Item = DirEntry> {
 
 fn deconflict<'a>(
     groups: impl IntoIterator<Item = (Imprint, Vec<&'a Path>)>,
-    metacache: &HashMap<&'a Path, u64>,
+    cache: &Metacache,
 ) -> io::Result<(usize, u64)> {
     let mut count = 0;
     let mut size = 0;
@@ -37,7 +56,7 @@ fn deconflict<'a>(
     let conflicts = groups.into_iter().flat_map(|x| x.1.into_iter().skip(1));
     for path in conflicts {
         count += 1;
-        size += metacache.get(path).cloned().unwrap_or_default();
+        size += cache.get(path).map(|x| x.len).unwrap_or_default();
         fs::remove_file(path)?;
     }
 
@@ -46,7 +65,7 @@ fn deconflict<'a>(
 
 fn pretty_print_conflicts<'a>(
     groups: impl IntoIterator<Item = (Imprint, Vec<&'a Path>)>,
-    metacache: &HashMap<&'a Path, u64>,
+    metacache: &Metacache,
 ) -> io::Result<()> {
     use format::{BytesFormatter, HexFormatter};
     use std::io::Write;
@@ -64,7 +83,7 @@ fn pretty_print_conflicts<'a>(
         size += n as u64
             * group
                 .first()
-                .and_then(|&path| metacache.get(path).cloned())
+                .and_then(|&path| metacache.get(path).map(|x| x.len))
                 .unwrap_or_default();
 
         writeln!(

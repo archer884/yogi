@@ -1,4 +1,4 @@
-use crate::format::BytesFormatter;
+use crate::{format::BytesFormatter, Meta, Metacache};
 use bumpalo::Bump;
 use hashbrown::{HashMap, HashSet};
 use imprint::Imprint;
@@ -42,16 +42,16 @@ pub fn process(path: &str, compare: &[impl AsRef<Path>], force: bool) -> io::Res
     use hashbrown::hash_map::Entry;
 
     let paths = Bump::new();
-    let mut metacache = HashMap::new();
-    let (length_filter, mut conflicts) = initialize_maps(path, &paths, &mut metacache)?;
+    let mut cache = Metacache::new();
+    let (length_filter, mut conflicts) = initialize_maps(path, &paths, &mut cache)?;
 
     for path in external_paths(path, compare, &paths) {
-        let len = path.metadata()?.len() as u64;
-        if length_filter.contains(&len) {
+        let meta: Meta = path.metadata()?.into();
+        if length_filter.contains(&meta.len) {
             let imprint = Imprint::new(path)?;
             if let Entry::Occupied(mut e) = conflicts.entry(imprint) {
                 e.get_mut().push(path);
-                metacache.insert(path, len);
+                cache.insert(path, meta);
             }
         }
     }
@@ -59,10 +59,10 @@ pub fn process(path: &str, compare: &[impl AsRef<Path>], force: bool) -> io::Res
     let conflicts = conflicts.into_iter().filter(|x| x.1.len() > 1);
 
     if force {
-        let (count, size) = super::deconflict(conflicts, &metacache)?;
+        let (count, size) = super::deconflict(conflicts, &cache)?;
         println!("Removed {} files ({})", count, BytesFormatter::new(size));
     } else {
-        super::pretty_print_conflicts(conflicts, &metacache)?;
+        super::pretty_print_conflicts(conflicts, &cache)?;
     }
 
     Ok(())
@@ -71,15 +71,15 @@ pub fn process(path: &str, compare: &[impl AsRef<Path>], force: bool) -> io::Res
 fn initialize_maps<'a>(
     path: &str,
     path_src: &'a Bump,
-    metacache: &mut HashMap<&'a Path, u64>,
+    metacache: &mut Metacache<'a>,
 ) -> io::Result<(HashSet<u64>, HashMap<Imprint, Vec<&'a Path>>)> {
     let mut lengths = HashSet::new();
     let mut conflicts = HashMap::new();
     for entry in super::list_entries(path) {
         let path = &**path_src.alloc(entry.path().to_owned());
-        let len = path.metadata()?.len() as u64;
-        lengths.insert(len);
-        metacache.insert(path, len);
+        let meta: Meta = path.metadata()?.into();
+        lengths.insert(meta.len);
+        metacache.insert(path, meta);
         conflicts.insert(Imprint::new(path)?, vec![path]);
     }
     Ok((lengths, conflicts))

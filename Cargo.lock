@@ -334,7 +334,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "yogi"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "bumpalo 3.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hashbrown 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
