@@ -31,7 +31,7 @@ impl PathSorter for MetaSorter<'_> {
     }
 }
 
-fn sorter<'a>(sort: SortOrder, cache: &'a Metacache<'a>) -> Box<dyn PathSorter + 'a> {
+fn get_sorter<'a>(sort: SortOrder, cache: &'a Metacache<'a>) -> Box<dyn PathSorter + 'a> {
     match sort {
         SortOrder::Descriptive => Box::new(PathRanker::new()),
         SortOrder::Newest => Box::new(MetaSorter {
@@ -56,7 +56,7 @@ pub fn process(path: &str, sort: SortOrder, force: bool) -> io::Result<()> {
 
     // Sorting before deconfliction or formatting ensures that deconfliction behavior is
     // previewed appropriately.
-    let sorter = sorter(sort, &metacache);
+    let sorter = get_sorter(sort, &metacache);
     conflicts_by_imprint
         .iter_mut()
         .for_each(|x| sorter.sort(&mut x.1));
