@@ -5,8 +5,7 @@ use structopt::StructOpt;
 #[derive(Clone, Debug, StructOpt)]
 pub struct Opt {
     /// The root path to be examined
-    ///
-    /// Defaults to "." if no value is provided.
+    /// Defaults to "."
     path: Option<String>,
 
     /// Additional paths (files in root path will be preferred)
