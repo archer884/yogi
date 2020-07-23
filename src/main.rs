@@ -67,7 +67,7 @@ fn pretty_print_conflicts<'a>(
     groups: impl IntoIterator<Item = (Imprint, Vec<&'a Path>)>,
     metacache: &Metacache,
 ) -> io::Result<()> {
-    use format::{BytesFormatter, HexFormatter};
+    use format::{ByteSize, HexFormatter};
     use std::io::Write;
 
     let handle = io::stdout();
@@ -98,11 +98,6 @@ fn pretty_print_conflicts<'a>(
         writeln!(handle)?;
     }
 
-    writeln!(
-        handle,
-        "{} duplicates ({})",
-        count,
-        BytesFormatter::new(size)
-    )?;
+    writeln!(handle, "{} duplicates ({})", count, size.bytes(),)?;
     Ok(())
 }

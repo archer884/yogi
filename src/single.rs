@@ -1,4 +1,4 @@
-use crate::{format::BytesFormatter, opt::SortOrder, rank::PathRanker, Meta, Metacache};
+use crate::{format::ByteSize, opt::SortOrder, rank::PathRanker, Meta, Metacache};
 use bumpalo::Bump;
 use hashbrown::HashMap;
 use imprint::Imprint;
@@ -63,7 +63,7 @@ pub fn process(path: &str, sort: SortOrder, force: bool) -> io::Result<()> {
 
     if force {
         let (count, size) = super::deconflict(conflicts_by_imprint, &metacache)?;
-        println!("Removed {} files ({})", count, BytesFormatter::new(size));
+        println!("Removed {} files ({})", count, size.bytes());
     } else {
         super::pretty_print_conflicts(conflicts_by_imprint, &metacache)?;
     }
