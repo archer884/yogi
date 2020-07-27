@@ -1,5 +1,6 @@
-use crate::{format::ByteSize, Meta, Metacache};
+use crate::{Meta, Metacache};
 use bumpalo::Bump;
+use fmtsize::{Conventional, FmtSize};
 use hashbrown::{HashMap, HashSet};
 use imprint::Imprint;
 use std::path::{Path, PathBuf};
@@ -60,7 +61,7 @@ pub fn process(path: &str, compare: &[impl AsRef<Path>], force: bool) -> io::Res
 
     if force {
         let (count, size) = super::deconflict(conflicts, &cache)?;
-        println!("Removed {} files ({})", count, size.bytes());
+        println!("Removed {} files ({})", count, size.fmt_size(Conventional));
     } else {
         super::pretty_print_conflicts(conflicts, &cache)?;
     }
