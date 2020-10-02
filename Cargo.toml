@@ -7,9 +7,9 @@ edition = "2018"
 [dependencies]
 bumpalo = "3.4.0"
 fmtsize = { git = "https://github.com/archer884/fmtsize.git" }
-hashbrown = "0.8.1"
+hashbrown = "0.9.1"
 imprint = { git = "https://github.com/archer884/imprint" }
-structopt = "0.3.15"
+structopt = "0.3.18"
 walkdir = "2.3.1"
 
 [profile.release]

@@ -21,6 +21,10 @@ pub struct Opt {
     /// Note that this only applies to the single tree process.
     #[structopt(short, long)]
     pub sort: Option<SortOrder>,
+
+    /// Do not recurse into subdirectories (applies to root path)
+    #[structopt(short, long)]
+    pub no_recurse: bool,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -58,5 +62,9 @@ impl Opt {
 
     pub fn sort_order(&self) -> SortOrder {
         self.sort.unwrap_or(SortOrder::Descriptive)
+    }
+
+    pub fn recurse(&self) -> bool {
+        !self.no_recurse
     }
 }

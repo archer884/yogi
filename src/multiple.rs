@@ -39,12 +39,17 @@ fn external_paths<'a>(
         .map(move |entry| &**path_src.alloc(entry.path().to_owned()))
 }
 
-pub fn process(path: &str, compare: &[impl AsRef<Path>], force: bool) -> io::Result<()> {
+pub fn process(
+    path: &str,
+    compare: &[impl AsRef<Path>],
+    force: bool,
+    recurse: bool,
+) -> io::Result<()> {
     use hashbrown::hash_map::Entry;
 
     let paths = Bump::new();
     let mut cache = Metacache::new();
-    let (length_filter, mut conflicts) = initialize_maps(path, &paths, &mut cache)?;
+    let (length_filter, mut conflicts) = initialize_maps(path, &paths, &mut cache, recurse)?;
 
     for path in external_paths(path, compare, &paths) {
         let meta: Meta = path.metadata()?.into();
@@ -73,10 +78,11 @@ fn initialize_maps<'a>(
     path: &str,
     path_src: &'a Bump,
     metacache: &mut Metacache<'a>,
+    recurse: bool,
 ) -> io::Result<(HashSet<u64>, HashMap<Imprint, Vec<&'a Path>>)> {
     let mut lengths = HashSet::new();
     let mut conflicts = HashMap::new();
-    for entry in super::list_entries(path) {
+    for entry in super::list_entries(path, recurse) {
         let path = &**path_src.alloc(entry.path().to_owned());
         let meta: Meta = path.metadata()?.into();
         lengths.insert(meta.len);

@@ -35,17 +35,29 @@ impl From<fs::Metadata> for Meta {
 fn main() -> io::Result<()> {
     let opt = Opt::from_args();
     if opt.compare.is_empty() {
-        single::process(opt.path(), opt.sort_order(), opt.force)
+        single::process(opt.path(), opt.sort_order(), opt.force, opt.recurse())
     } else {
-        multiple::process(opt.path(), &opt.compare, opt.force)
+        multiple::process(opt.path(), &opt.compare, opt.force, opt.recurse())
     }
 }
 
-fn list_entries(root: impl AsRef<Path>) -> impl Iterator<Item = DirEntry> {
-    WalkDir::new(root)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file())
+fn list_entries(root: impl AsRef<Path>, recurse: bool) -> impl Iterator<Item = DirEntry> {
+    fn is_file(entry: &DirEntry) -> bool {
+        entry.file_type().is_file()
+    }
+
+    if recurse {
+        WalkDir::new(root)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(is_file)
+    } else {
+        WalkDir::new(root)
+            .max_depth(1)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(is_file)
+    }
 }
 
 fn deconflict<'a>(
