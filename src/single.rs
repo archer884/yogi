@@ -1,11 +1,11 @@
-use crate::{opt::SortOrder, rank::PathRanker, Meta, Metacache};
+use std::{cmp::Reverse, io, path::Path};
+
 use bumpalo::Bump;
 use fmtsize::{Conventional, FmtSize};
 use hashbrown::HashMap;
 use imprint::Imprint;
-use std::cmp::Reverse;
-use std::io;
-use std::path::Path;
+
+use crate::{opt::SortOrder, rank::PathRanker, Meta, Metacache};
 
 trait PathSorter {
     fn sort(&self, paths: &mut [&Path]);

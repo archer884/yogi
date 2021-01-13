@@ -1,11 +1,17 @@
-use crate::{Meta, Metacache};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
+
 use bumpalo::Bump;
 use fmtsize::{Conventional, FmtSize};
 use hashbrown::{HashMap, HashSet};
 use imprint::Imprint;
-use std::path::{Path, PathBuf};
-use std::{fs, io};
 use walkdir::{DirEntry, WalkDir};
+
+use crate::{Meta, Metacache};
+
+type ImprintMap<'a> = HashMap<Imprint, Vec<&'a Path>>;
 
 struct ExclusionFilter {
     exclude: PathBuf,
@@ -34,7 +40,7 @@ fn external_paths<'a>(
     path_src: &'a Bump,
 ) -> impl Iterator<Item = &'a Path> + 'a {
     include
-        .into_iter()
+        .iter()
         .flat_map(move |path| list_files_with_exclusion(path, exclude))
         .map(move |entry| &**path_src.alloc(entry.path().to_owned()))
 }
@@ -79,7 +85,7 @@ fn initialize_maps<'a>(
     path_src: &'a Bump,
     metacache: &mut Metacache<'a>,
     recurse: bool,
-) -> io::Result<(HashSet<u64>, HashMap<Imprint, Vec<&'a Path>>)> {
+) -> io::Result<(HashSet<u64>, ImprintMap<'a>)> {
     let mut lengths = HashSet::new();
     let mut conflicts = HashMap::new();
     for entry in super::list_entries(path, recurse) {

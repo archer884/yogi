@@ -1,5 +1,6 @@
-use hashbrown::HashSet;
 use std::path::Path;
+
+use hashbrown::HashSet;
 
 #[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
 pub struct Rank {

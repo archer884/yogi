@@ -1,15 +1,16 @@
+#![warn(clippy::all)]
+
+use std::{fs, io, path::Path, time::SystemTime};
+
+use imprint::Imprint;
+use opt::Opt;
+use walkdir::{DirEntry, WalkDir};
+
 mod format;
 mod multiple;
 mod opt;
 mod rank;
 mod single;
-
-use imprint::Imprint;
-use opt::Opt;
-use std::path::Path;
-use std::time::SystemTime;
-use std::{fs, io};
-use walkdir::{DirEntry, WalkDir};
 
 type Metacache<'a> = hashbrown::HashMap<&'a Path, Meta>;
 

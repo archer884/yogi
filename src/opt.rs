@@ -1,4 +1,5 @@
 use std::str::FromStr;
+
 use structopt::StructOpt;
 
 /// Examine a directory for duplicated files and remove them.
