@@ -90,7 +90,14 @@ fn initialize_maps<'a>(
     let mut conflicts = HashMap::new();
     for entry in super::list_entries(path, recurse) {
         let path = &**path_src.alloc(entry.path().to_owned());
-        let meta: Meta = path.metadata()?.into();
+        let meta: Meta = match path.metadata() {
+            Ok(metadata) => metadata.into(),
+            Err(e) => {
+                eprintln!("error deriving metadata for: {}", path.display());
+                return Err(e);
+            }
+        };
+
         lengths.insert(meta.len);
         metacache.insert(path, meta);
         conflicts.insert(Imprint::new(path)?, vec![path]);

@@ -1,16 +1,16 @@
 [package]
 name = "yogi"
-version = "0.2.9"
+version = "0.2.10"
 authors = ["J/A <archer884@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-bumpalo = "3.4.0"
+bumpalo = "3.6.1"
 fmtsize = { git = "https://github.com/archer884/fmtsize" }
-hashbrown = "0.9.1"
+hashbrown = "0.11.1"
 imprint = { git = "https://github.com/archer884/imprint" }
 structopt = "0.3.21"
-walkdir = "2.3.1"
+walkdir = "2.3.2"
 
 [profile.release]
 lto = "thin"
