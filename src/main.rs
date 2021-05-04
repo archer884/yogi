@@ -33,12 +33,17 @@ impl From<fs::Metadata> for Meta {
     }
 }
 
-fn main() -> io::Result<()> {
-    let opt = Opt::from_args();
-    if opt.compare.is_empty() {
-        single::process(opt.path(), opt.sort_order(), opt.force, opt.recurse())
+fn main() {
+    if let Err(e) = run(&Opt::from_args()) {
+        eprintln!("{}", e);
+    }
+}
+
+fn run(opts: &Opt) -> io::Result<()> {
+    if opts.compare.is_empty() {
+        single::process(opts.path(), opts.sort_order(), opts.force, opts.recurse())
     } else {
-        multiple::process(opt.path(), &opt.compare, opt.force, opt.recurse())
+        multiple::process(opts.path(), &opts.compare, opts.force, opts.recurse())
     }
 }
 

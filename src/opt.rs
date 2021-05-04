@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{error::Error, fmt::Display, str::FromStr};
 
 use structopt::StructOpt;
 
@@ -36,21 +36,32 @@ pub enum SortOrder {
 }
 
 impl FromStr for SortOrder {
-    type Err = String;
+    type Err = ParseSortOrderError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
             "d" | "descriptive" => Ok(SortOrder::Descriptive),
             "o" | "oldest" => Ok(SortOrder::Oldest),
             "n" | "newest" => Ok(SortOrder::Newest),
-
-            _ => Err(format!(
-                "{:?} is not a valid sort order; try oldest or newest",
-                s
-            )),
+            _ => Err(ParseSortOrderError(s.into())),
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct ParseSortOrderError(String);
+
+impl Display for ParseSortOrderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:?} is not a valid sort order\nTry one of descriptive, oldest, newest",
+            self.0
+        )
+    }
+}
+
+impl Error for ParseSortOrderError {}
 
 impl Opt {
     pub fn from_args() -> Self {

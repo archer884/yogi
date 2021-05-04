@@ -88,6 +88,7 @@ fn initialize_maps<'a>(
 ) -> io::Result<(HashSet<u64>, ImprintMap<'a>)> {
     let mut lengths = HashSet::new();
     let mut conflicts = HashMap::new();
+
     for entry in super::list_entries(path, recurse) {
         let path = &**path_src.alloc(entry.path().to_owned());
         let meta: Meta = match path.metadata() {
@@ -102,6 +103,7 @@ fn initialize_maps<'a>(
         metacache.insert(path, meta);
         conflicts.insert(Imprint::new(path)?, vec![path]);
     }
+
     Ok((lengths, conflicts))
 }
 
@@ -110,6 +112,7 @@ fn list_files_with_exclusion<'a>(
     exclude: impl AsRef<Path> + 'a,
 ) -> impl Iterator<Item = DirEntry> + 'a {
     let filter = ExclusionFilter::from_path(exclude.as_ref());
+
     WalkDir::new(root)
         .into_iter()
         .filter_entry(move |entry| filter.is_valid(entry))
