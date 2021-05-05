@@ -9,7 +9,7 @@ mod rank;
 mod single;
 
 use imprint::Imprint;
-use opt::Opt;
+use opt::Opts;
 use walkdir::{DirEntry, WalkDir};
 
 type Metacache<'a> = hashbrown::HashMap<&'a Path, Meta>;
@@ -34,12 +34,12 @@ impl From<fs::Metadata> for Meta {
 }
 
 fn main() {
-    if let Err(e) = run(&Opt::from_args()) {
+    if let Err(e) = run(&Opts::parse()) {
         eprintln!("{}", e);
     }
 }
 
-fn run(opts: &Opt) -> io::Result<()> {
+fn run(opts: &Opts) -> io::Result<()> {
     if opts.compare.is_empty() {
         single::process(opts.path(), opts.sort_order(), opts.force, opts.recurse())
     } else {

@@ -4,7 +4,7 @@ use structopt::StructOpt;
 
 /// Examine a directory for duplicated files and remove them.
 #[derive(Clone, Debug, StructOpt)]
-pub struct Opt {
+pub struct Opts {
     /// The root path to be examined
     /// Defaults to "."
     path: Option<String>,
@@ -63,8 +63,8 @@ impl Display for ParseSortOrderError {
 
 impl Error for ParseSortOrderError {}
 
-impl Opt {
-    pub fn from_args() -> Self {
+impl Opts {
+    pub fn parse() -> Self {
         StructOpt::from_args()
     }
 
