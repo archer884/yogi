@@ -1,4 +1,21 @@
-#![warn(clippy::all)]
+// FIXME: the plan is to add a command allowing comparisons against a 
+// cached directory structure such that the left hand side can be constant
+// and left unmodified while the right hand side is maybe several distinct
+// directories over several runs.
+//
+// Like, you might cache your downloads folder and compare it against 
+// several places where downloads are moved for long term storage.
+// The user would need the cache to update any time files were removed,
+// so the cache would need to be rewritten for each change to the directory 
+// structure or maybe versioned or something. I think it should also have
+// some kind of timestamp on it (and on the individual files) to let it
+// know if said files have been updated.
+//
+// In case it isn't clear, the cache is just a json dump of file metadata
+// for the directory along with, say, the imprints of the files. I guess
+// that means I need to develop a serialization format for imprints, right?
+// Definitely going with base64. It's not like that's meant to be human-
+// readable.
 
 use std::{fs, io, path::Path, time::SystemTime};
 
