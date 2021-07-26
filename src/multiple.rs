@@ -1,48 +1,21 @@
 use std::{
-    fs, io,
-    path::{Path, PathBuf},
+    borrow::Borrow,
+    fs,
+    io::{self, Write},
+    path::Path,
 };
 
 use bumpalo::Bump;
 use fmtsize::{Conventional, FmtSize};
 use hashbrown::{HashMap, HashSet};
 use imprint::Imprint;
-use walkdir::{DirEntry, WalkDir};
 
-use crate::{Meta, Metacache};
+use crate::{format::HexFormatter, Meta, Metacache};
 
-type ImprintMap<'a> = HashMap<Imprint, Vec<&'a Path>>;
-
-struct ExclusionFilter {
-    exclude: PathBuf,
-}
-
-impl ExclusionFilter {
-    fn from_path(path: impl AsRef<Path>) -> Self {
-        let exclude = fs::canonicalize(path.as_ref()).unwrap_or_else(|_| path.as_ref().into());
-        Self { exclude }
-    }
-
-    fn is_valid(&self, entry: &DirEntry) -> bool {
-        use std::borrow::Cow;
-        !entry.file_type().is_dir() || {
-            let path = fs::canonicalize(entry.path())
-                .map(Cow::from)
-                .unwrap_or_else(|_| Cow::from(entry.path()));
-            self.exclude != path
-        }
-    }
-}
-
-fn external_paths<'a>(
-    exclude: &'a str,
-    include: &'a [impl AsRef<Path>],
-    path_src: &'a Bump,
-) -> impl Iterator<Item = &'a Path> + 'a {
-    include
-        .iter()
-        .flat_map(move |path| list_files_with_exclusion(path, exclude))
-        .map(move |entry| &**path_src.alloc(entry.path().to_owned()))
+#[derive(Clone, Debug, Default)]
+struct Conflict<'a> {
+    base_files: Vec<&'a Path>,
+    compare_files: Vec<&'a Path>,
 }
 
 pub fn process(
@@ -55,67 +28,127 @@ pub fn process(
 
     let paths = Bump::new();
     let mut cache = Metacache::new();
-    let (length_filter, mut conflicts) = initialize_maps(path, &paths, &mut cache, recurse)?;
 
-    for path in external_paths(path, compare, &paths) {
+    let base_files: HashSet<_> = super::list_entries(path, recurse)
+        .filter_map(|entry| entry.path().canonicalize().ok())
+        .map(|entry| &**paths.alloc(entry))
+        .collect();
+    let compare_files: HashSet<_> = compare
+        .iter()
+        .flat_map(|path| super::list_entries(path, recurse))
+        .filter_map(|entry| entry.path().canonicalize().ok())
+        .map(|entry| &**paths.alloc(entry))
+        .collect();
+
+    let base_files: Vec<_> = base_files.difference(&compare_files).copied().collect();
+    let base_files_by_length: HashMap<_, _> = by_length(base_files.iter().copied())?;
+    let mut files_by_imprint: HashMap<Imprint, Conflict> = HashMap::new();
+
+    for path in compare_files {
         let meta: Meta = path.metadata()?.into();
-        if length_filter.contains(&meta.len) {
-            let imprint = Imprint::new(path)?;
-            if let Entry::Occupied(mut e) = conflicts.entry(imprint) {
-                e.get_mut().push(path);
-                cache.insert(path, meta);
+        if let Some(potential_conflicts) = base_files_by_length.get(&meta.len) {
+            let imprints = potential_conflicts
+                .iter()
+                .filter_map(|&path| Imprint::new(path).ok());
+            for imprint in imprints {
+                files_by_imprint
+                    .entry(imprint)
+                    .or_default()
+                    .base_files
+                    .push(path);
             }
+        }
+
+        let imprint = Imprint::new(path)?;
+        if let Entry::Occupied(mut conflicts) = files_by_imprint.entry(imprint) {
+            conflicts.get_mut().compare_files.push(path);
+            cache.insert(path, meta);
         }
     }
 
-    let conflicts = conflicts.into_iter().filter(|x| x.1.len() > 1);
+    let conflicts = files_by_imprint
+        .into_iter()
+        .filter(|entry| !entry.1.compare_files.is_empty());
 
     if force {
-        let (count, size) = super::deconflict(conflicts, &cache)?;
+        let mut count = 0usize;
+        let mut size = 0u64;
+        for path in conflicts
+            .into_iter()
+            .map(|entry| entry.1.compare_files.into_iter())
+            .flatten()
+        {
+            fs::remove_file(path)?;
+            count += 1;
+            size += cache.get(path).map(|meta| meta.len).unwrap_or_default();
+        }
         println!("Removed {} files ({})", count, size.fmt_size(Conventional));
     } else {
-        super::pretty_print_conflicts(conflicts, &cache)?;
+        pretty_print_conflicts(conflicts, &cache)?;
     }
 
     Ok(())
 }
 
-fn initialize_maps<'a>(
-    path: &str,
-    path_src: &'a Bump,
-    metacache: &mut Metacache<'a>,
-    recurse: bool,
-) -> io::Result<(HashSet<u64>, ImprintMap<'a>)> {
-    let mut lengths = HashSet::new();
-    let mut conflicts = HashMap::new();
+fn pretty_print_conflicts<'a>(
+    groups: impl IntoIterator<Item = (Imprint, Conflict<'a>)>,
+    cache: &Metacache,
+) -> io::Result<()> {
+    let handle = io::stdout();
+    let mut handle = handle.lock();
+    let mut count = 0;
+    let mut size = 0;
 
-    for entry in super::list_entries(path, recurse) {
-        let path = &**path_src.alloc(entry.path().to_owned());
-        let meta: Meta = match path.metadata() {
-            Ok(metadata) => metadata.into(),
-            Err(e) => {
-                eprintln!("error deriving metadata for: {}", path.display());
-                return Err(e);
-            }
-        };
+    for (imprint, conflict) in groups {
+        count += conflict.compare_files.len();
+        size += conflict.compare_files.len() as u64
+            * conflict
+                .compare_files
+                .first()
+                .and_then(|&path| cache.get(path).map(|cx| cx.len))
+                .unwrap_or_default();
 
-        lengths.insert(meta.len);
-        metacache.insert(path, meta);
-        conflicts.insert(Imprint::new(path)?, vec![path]);
+        writeln!(
+            handle,
+            "{:x}\n----------------------------------------------------------------",
+            HexFormatter(&imprint.head)
+        )?;
+
+        for &path in &conflict.base_files {
+            writeln!(handle, "{}", path.file_name().unwrap().to_string_lossy())?;
+        }
+
+        writeln!(
+            handle,
+            "================================================================",
+        )?;
+
+        for &path in &conflict.compare_files {
+            writeln!(handle, "{}", path.file_name().unwrap().to_string_lossy())?;
+        }
+        writeln!(handle)?;
     }
 
-    Ok((lengths, conflicts))
+    writeln!(
+        handle,
+        "{} duplicates ({})",
+        count,
+        size.fmt_size(Conventional)
+    )?;
+
+    Ok(())
 }
 
-fn list_files_with_exclusion<'a>(
-    root: impl AsRef<Path>,
-    exclude: impl AsRef<Path> + 'a,
-) -> impl Iterator<Item = DirEntry> + 'a {
-    let filter = ExclusionFilter::from_path(exclude.as_ref());
-
-    WalkDir::new(root)
-        .into_iter()
-        .filter_entry(move |entry| filter.is_valid(entry))
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_type().is_file())
+fn by_length<'a, I>(paths: I) -> io::Result<HashMap<u64, Vec<&'a Path>>>
+where
+    I: IntoIterator<Item = &'a Path> + 'a,
+{
+    let mut map = HashMap::new();
+    for path in paths {
+        let meta = fs::metadata(path.borrow())?;
+        map.entry(meta.len())
+            .or_insert_with(Vec::new)
+            .push(path.borrow());
+    }
+    Ok(map)
 }

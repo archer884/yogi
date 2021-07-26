@@ -1,12 +1,12 @@
-// FIXME: the plan is to add a command allowing comparisons against a 
+// FIXME: the plan is to add a command allowing comparisons against a
 // cached directory structure such that the left hand side can be constant
 // and left unmodified while the right hand side is maybe several distinct
 // directories over several runs.
 //
-// Like, you might cache your downloads folder and compare it against 
+// Like, you might cache your downloads folder and compare it against
 // several places where downloads are moved for long term storage.
 // The user would need the cache to update any time files were removed,
-// so the cache would need to be rewritten for each change to the directory 
+// so the cache would need to be rewritten for each change to the directory
 // structure or maybe versioned or something. I think it should also have
 // some kind of timestamp on it (and on the individual files) to let it
 // know if said files have been updated.
@@ -16,6 +16,42 @@
 // that means I need to develop a serialization format for imprints, right?
 // Definitely going with base64. It's not like that's meant to be human-
 // readable.
+
+// FIXME: found a bug where subtree deconfliction appears to show two of the
+// same file.
+//
+// yogi foo -c foo/bar
+//
+// The first conflict (have not observed this for any others) will apparently
+// (sometimes) report the same path twice rather than the keep and remove
+// paths. Reproducible as of version 0.2.12.
+//
+// Actually, I just attempted to reproduce this and it showed me the wrong
+// paths for ALL of the conflicts. See below.
+
+/* command output:
+14a93f135896e995e9549227a3b1a17877b503032ea85154fe9c1568e974e23a
+================================================================
+C:\Users\archer\Pictures\test\19473771.jpg
+C:\Users\archer\Pictures\test\19473771.jpg
+
+814a15f7921109fae6e18749b0e4dec2e2670402fa0e97c72f510fa2c93e2cf0
+================================================================
+C:\Users\archer\Pictures\test\20986655.jpg
+C:\Users\archer\Pictures\test\20986655.jpg
+
+145f4fe3166206b72228d97f1176b93f2d05e0c0ddcb687f239c4a8a875982f9
+================================================================
+C:\Users\archer\Pictures\test\20040639.jpg
+C:\Users\archer\Pictures\test\20040639.jpg
+
+58e01888647d0c806f46506f58c196d6d8aabc2970598189cddc2bc7de2b1883
+================================================================
+C:\Users\archer\Pictures\test\19726844.jpg
+C:\Users\archer\Pictures\test\19726844.jpg
+
+4 duplicates (1.45 MB)
+*/
 
 use std::{fs, io, path::Path, time::SystemTime};
 
@@ -53,6 +89,7 @@ impl From<fs::Metadata> for Meta {
 fn main() {
     if let Err(e) = run(&Opts::parse()) {
         eprintln!("{}", e);
+        std::process::exit(1);
     }
 }
 
