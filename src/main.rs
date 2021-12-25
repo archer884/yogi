@@ -19,7 +19,6 @@
 
 use std::{fs, io, path::Path, time::SystemTime};
 
-mod format;
 mod multiple;
 mod opt;
 mod rank;
@@ -106,7 +105,6 @@ fn pretty_print_conflicts<'a>(
     metacache: &Metacache,
 ) -> io::Result<()> {
     use fmtsize::{Conventional, FmtSize};
-    use format::HexFormatter;
     use std::io::Write;
 
     let handle = io::stdout();
@@ -127,8 +125,8 @@ fn pretty_print_conflicts<'a>(
 
         writeln!(
             handle,
-            "{:x}\n================================================================",
-            HexFormatter(&imprint.head)
+            "{}\n================================================================",
+            imprint,
         )?;
 
         for path in group {

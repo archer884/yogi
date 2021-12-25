@@ -10,7 +10,7 @@ use fmtsize::{Conventional, FmtSize};
 use hashbrown::{HashMap, HashSet};
 use imprint::Imprint;
 
-use crate::{format::HexFormatter, Meta, Metacache};
+use crate::{Meta, Metacache};
 
 #[derive(Clone, Debug, Default)]
 struct Conflict<'a> {
@@ -110,8 +110,8 @@ fn pretty_print_conflicts<'a>(
 
         writeln!(
             handle,
-            "{:x}\n----------------------------------------------------------------",
-            HexFormatter(&imprint.head)
+            "{}\n----------------------------------------------------------------",
+            imprint,
         )?;
 
         for &path in &conflict.base_files {
