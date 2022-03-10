@@ -75,8 +75,7 @@ pub fn process(
         let mut size = 0u64;
         for path in conflicts
             .into_iter()
-            .map(|entry| entry.1.compare_files.into_iter())
-            .flatten()
+            .flat_map(|entry| entry.1.compare_files)
         {
             fs::remove_file(path)?;
             count += 1;

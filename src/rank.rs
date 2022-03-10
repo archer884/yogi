@@ -1,31 +1,13 @@
-use std::{ops::Not, path::Path};
+use std::path::Path;
 
 use hashbrown::HashSet;
 use regex::Regex;
 
-#[derive(Clone, Debug, Ord, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Rank {
     segments: i32,
     words: i32,
-    is_duplicate: bool,
-}
-
-impl PartialOrd for Rank {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        match self.segments.partial_cmp(&other.segments) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-
-        match self.words.partial_cmp(&other.words) {
-            Some(core::cmp::Ordering::Equal) => {}
-            ord => return ord,
-        }
-
-        self.is_duplicate
-            .not()
-            .partial_cmp(&other.is_duplicate.not())
-    }
+    is_unique: bool,
 }
 
 pub struct PathRanker {
@@ -51,7 +33,7 @@ impl PathRanker {
         Rank {
             segments: path.components().count() as i32,
             words,
-            is_duplicate: path
+            is_unique: !path
                 .file_name()
                 .and_then(|file_name| file_name.to_str())
                 .map(|file_name| self.pattern.is_match(file_name))
@@ -79,8 +61,8 @@ mod tests {
 
     #[test]
     fn filenames_with_words_outrank_filenames_without() {
-        let word_free = "./59670723_2289729794623117_1948407069107290112_n.mp4";
         let with_words = "./Video by foo-Bw8_9u_lqjt.mp4";
+        let word_free = "./59670723_2289729794623117_1948407069107290112_n.mp4";
         let ranker = PathRanker::new();
         let a = ranker.rank(with_words);
         let b = ranker.rank(word_free);
