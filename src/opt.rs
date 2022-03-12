@@ -1,30 +1,30 @@
 use std::{error::Error, fmt::Display, str::FromStr};
 
-use structopt::StructOpt;
+use clap::Parser;
 
 /// Examine a directory for duplicated files and remove them.
-#[derive(Clone, Debug, StructOpt)]
+#[derive(Clone, Debug, Parser)]
 pub struct Opts {
     /// The root path to be examined
     /// Defaults to "."
     path: Option<String>,
 
     /// Additional paths (files in root path will be preferred)
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub compare: Vec<String>,
 
     /// Remove duplicate files.
-    #[structopt(short = "f", long = "force")]
+    #[clap(short = 'f', long = "force")]
     pub force: bool,
 
     /// Keep 'oldest' or 'newest' files instead of 'most descriptive.'
     ///
     /// Note that this only applies to the single tree process.
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub sort: Option<SortOrder>,
 
     /// Do not recurse into subdirectories (applies to root path)
-    #[structopt(short, long)]
+    #[clap(short, long)]
     pub no_recurse: bool,
 }
 
@@ -65,7 +65,7 @@ impl Error for ParseSortOrderError {}
 
 impl Opts {
     pub fn parse() -> Self {
-        StructOpt::from_args()
+        Parser::parse()
     }
 
     pub fn path(&self) -> &str {
