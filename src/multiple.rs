@@ -40,7 +40,7 @@ pub fn process(
         .map(|entry| &**paths.alloc(entry))
         .collect();
 
-    let base_files: Vec<_> = base_files.difference(&compare_files).copied().collect();
+    let compare_files: Vec<_> = compare_files.difference(&base_files).copied().collect();
     let base_files_by_length: HashMap<_, _> = by_length(base_files.iter().copied())?;
     let mut files_by_imprint: HashMap<Imprint, Conflict> = HashMap::new();
 
