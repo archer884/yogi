@@ -93,8 +93,7 @@ fn pretty_print_conflicts<'a>(
     groups: impl IntoIterator<Item = (Imprint, Conflict<'a>)>,
     cache: &Metacache,
 ) -> io::Result<()> {
-    let handle = io::stdout();
-    let mut handle = handle.lock();
+    let mut handle = io::stdout().lock();
     let mut count = 0;
     let mut size = 0;
 

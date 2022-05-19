@@ -107,8 +107,7 @@ fn pretty_print_conflicts<'a>(
     use fmtsize::{Conventional, FmtSize};
     use std::io::Write;
 
-    let handle = io::stdout();
-    let mut handle = handle.lock();
+    let mut handle = io::stdout().lock();
     let mut count = 0;
     let mut size = 0;
 
