@@ -1,6 +1,6 @@
 [package]
 name = "yogi"
-version = "0.2.16"
+version = "0.2.17"
 authors = ["J/A <archer884@gmail.com>"]
 edition = "2021"
 

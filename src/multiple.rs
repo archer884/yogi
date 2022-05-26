@@ -44,20 +44,35 @@ pub fn process(
     let base_files_by_length: HashMap<_, _> = by_length(base_files.iter().copied())?;
     let mut files_by_imprint: HashMap<Imprint, Conflict> = HashMap::new();
 
+    // Here be dragons.
+
+    // Basically, the first thing we do is populate files_by_imprint with any *potential* conflicts
+    // (as determined by file length) from the base file list. The key for this process is the file
+    // imprint, but the value is a struct called Conflict and all base file paths are inserted here
+    // onto the conflict.base_files member. This process is performed for each path in the
+    // comparison set.
+
     for path in compare_files {
         let meta: Meta = path.metadata()?.into();
         if let Some(potential_conflicts) = base_files_by_length.get(&meta.len) {
             let imprints = potential_conflicts
                 .iter()
-                .filter_map(|&path| Imprint::new(path).ok());
-            for imprint in imprints {
+                .filter_map(|&path| Imprint::new(path).ok().map(|imprint| (path, imprint)));
+            for (base_path, imprint) in imprints {
                 files_by_imprint
                     .entry(imprint)
                     .or_default()
                     .base_files
-                    .push(path);
+                    .push(base_path);
             }
         }
+
+        // Now we're on to step two, which is to populate only occupied entries with the paths of
+        // files with matching imprints from the comparison set. In theory, only the
+        // conflict.compare_files member is modified here, and only files from the set of
+        // compared paths rather than files from the base path. However, when pretty-printed,
+        // these results pretty much ALWAYS look WEIRD. Specifically, they look as though the base
+        // file and compare file have the same filename. (As of May 26, 2022.)
 
         let imprint = Imprint::new(path)?;
         if let Entry::Occupied(mut conflicts) = files_by_imprint.entry(imprint) {
