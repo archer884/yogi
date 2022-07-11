@@ -4,6 +4,7 @@ use clap::Parser;
 
 /// Examine a directory for duplicated files and remove them.
 #[derive(Clone, Debug, Parser)]
+#[clap(version)]
 pub struct Opts {
     /// The root path to be examined
     /// Defaults to "."
