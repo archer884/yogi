@@ -1,5 +1,6 @@
 use std::{fs, io, path::Path, time::SystemTime};
 
+mod cache;
 mod multiple;
 mod opt;
 mod rank;
