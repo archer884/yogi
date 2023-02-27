@@ -3,30 +3,42 @@ use std::{error::Error, fmt::Display, str::FromStr};
 use clap::Parser;
 
 /// Examine a directory for duplicated files and remove them.
-#[derive(Clone, Debug, Parser)]
-#[clap(version)]
+#[derive(Debug, Parser)]
+#[command(version, subcommand_negates_reqs(true))]
 pub struct Opts {
     /// The root path to be examined
     /// Defaults to "."
     path: Option<String>,
 
     /// Additional paths (files in root path will be preferred)
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub compare: Vec<String>,
 
     /// Remove duplicate files.
-    #[clap(short = 'f', long = "force")]
+    #[arg(short = 'f', long = "force")]
     pub force: bool,
 
     /// Keep 'oldest' or 'newest' files instead of 'most descriptive.'
     ///
     /// Note that this only applies to the single tree process.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub sort: Option<SortOrder>,
 
     /// Do not recurse into subdirectories (applies to root path)
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub no_recurse: bool,
+
+    #[command(subcommand)]
+    pub command: Option<Command>,
+}
+
+#[derive(Debug, Parser)]
+pub enum Command {
+    /// cache results for the root path
+    Cache,
+
+    /// compare using cached results
+    CompareCache 
 }
 
 #[derive(Copy, Clone, Debug)]
