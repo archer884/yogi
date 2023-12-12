@@ -1,5 +1,4 @@
 use std::{
-    borrow::Borrow,
     fs,
     io::{self, Write},
     path::Path,
@@ -158,10 +157,8 @@ where
 {
     let mut map = HashMap::new();
     for path in paths {
-        let meta = fs::metadata(path.borrow())?;
-        map.entry(meta.len())
-            .or_insert_with(Vec::new)
-            .push(path.borrow());
+        let meta = fs::metadata(path)?;
+        map.entry(meta.len()).or_insert_with(Vec::new).push(path);
     }
     Ok(map)
 }
