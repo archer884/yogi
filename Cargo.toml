@@ -5,13 +5,13 @@ authors = ["J/A <archer884@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-bumpalo = "3.12.0"
-clap = { version = "4.1.6", features = ["derive"] }
+bumpalo = "3.14.0"
+clap = { version = "4.4.11", features = ["derive"] }
 fmtsize = { git = "https://github.com/archer884/fmtsize" }
-hashbrown = "0.13.2"
+hashbrown = "0.14.3"
 imprint = { git = "https://github.com/archer884/imprint" }
-regex = "1.7.1"
-walkdir = "2.3.2"
+regex = "1.10.2"
+walkdir = "2.4.0"
 
 [profile.release]
 lto = "thin"
