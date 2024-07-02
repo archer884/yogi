@@ -5,7 +5,7 @@ use clap::Parser;
 /// Examine a directory for duplicated files and remove them.
 #[derive(Clone, Debug, Parser)]
 #[clap(version)]
-pub struct Opts {
+pub struct Args {
     /// The root path to be examined
     /// Defaults to "."
     path: Option<String>,
@@ -64,7 +64,7 @@ impl Display for ParseSortOrderError {
 
 impl Error for ParseSortOrderError {}
 
-impl Opts {
+impl Args {
     pub fn parse() -> Self {
         Parser::parse()
     }

@@ -1,43 +1,24 @@
-use std::{fs, io, path::Path, time::SystemTime};
+use std::{fs, io, path::Path};
 
+mod config;
+mod meta;
 mod multiple;
-mod opt;
 mod rank;
 mod single;
 
+use config::Args;
 use imprint::Imprint;
-use opt::Opts;
+use meta::Metacache;
 use walkdir::{DirEntry, WalkDir};
 
-type Metacache<'a> = hashbrown::HashMap<&'a Path, Meta>;
-
-#[derive(Clone, Debug)]
-struct Meta {
-    // The only time I've ever seen this fail was in pulling metadata for files on a Windows
-    // volume from a Linux host. Whether it can happen under any other circumstances, God knows.
-    // Hopefully God also knows what happens if you prioritize files by created date and they
-    // don't freaking have one.
-    created: Option<SystemTime>,
-    len: u64,
-}
-
-impl From<fs::Metadata> for Meta {
-    fn from(meta: fs::Metadata) -> Self {
-        Self {
-            created: meta.created().ok(),
-            len: meta.len(),
-        }
-    }
-}
-
 fn main() {
-    if let Err(e) = run(&Opts::parse()) {
+    if let Err(e) = run(&Args::parse()) {
         eprintln!("{}", e);
         std::process::exit(1);
     }
 }
 
-fn run(opts: &Opts) -> io::Result<()> {
+fn run(opts: &Args) -> io::Result<()> {
     if opts.compare.is_empty() {
         single::process(opts.path(), opts.sort_order(), opts.force, opts.recurse())
     } else {

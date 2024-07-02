@@ -9,7 +9,7 @@ use fmtsize::{Conventional, FmtSize};
 use hashbrown::{HashMap, HashSet};
 use imprint::Imprint;
 
-use crate::{Meta, Metacache};
+use crate::meta::{Meta, Metacache};
 
 #[derive(Clone, Debug, Default)]
 struct Conflict<'a> {

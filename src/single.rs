@@ -5,7 +5,7 @@ use fmtsize::{Conventional, FmtSize};
 use hashbrown::HashMap;
 use imprint::Imprint;
 
-use crate::{opt::SortOrder, rank::PathRanker, Meta, Metacache};
+use crate::{config::SortOrder, meta::Meta, rank::PathRanker, Metacache};
 
 trait PathSorter {
     fn sort(&self, paths: &mut [&Path]);
