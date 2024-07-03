@@ -130,8 +130,6 @@ fn get_conflicts<'a>(
         }
     }
 
-    // panic!();
-
     Ok(files_by_imprint
         .into_iter()
         .filter(|entry| !entry.1.compare_files.is_empty()))
