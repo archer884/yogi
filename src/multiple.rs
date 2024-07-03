@@ -6,7 +6,7 @@ use std::{
 
 use bumpalo::Bump;
 use fmtsize::{Conventional, FmtSize};
-use hashbrown::{HashMap, HashSet};
+use hashbrown::{hash_map::EntryRef, HashMap, HashSet};
 use imprint::Imprint;
 
 use crate::meta::{Meta, Metacache};
@@ -23,24 +23,67 @@ pub fn process(
     force: bool,
     recurse: bool,
 ) -> io::Result<()> {
-    use hashbrown::hash_map::Entry;
-
     let paths = Bump::new();
-    let mut cache = Metacache::new();
+    let mut context = Context {
+        root: path,
+        compare_to: compare,
+        paths: &paths,
+        cache: Metacache::new(),
+    };
 
-    let base_files: HashSet<_> = super::list_entries(path, recurse)
+    let conflicts = get_conflicts(&mut context, recurse)?;
+
+    if force {
+        let mut count = 0usize;
+        let mut size = 0u64;
+        for path in conflicts
+            .into_iter()
+            .flat_map(|entry| entry.1.compare_files)
+        {
+            fs::remove_file(path)?;
+            count += 1;
+            size += context
+                .cache
+                .get(path)
+                .map(|meta| meta.len)
+                .unwrap_or_default();
+        }
+        println!("Removed {} files ({})", count, size.fmt_size(Conventional));
+    } else {
+        pretty_print_conflicts(conflicts, &context.cache)?;
+    }
+
+    Ok(())
+}
+
+#[derive(Debug)]
+struct Context<'a, T> {
+    root: &'a str,
+    compare_to: &'a [T],
+    paths: &'a Bump,
+    cache: Metacache<'a>,
+}
+
+fn get_conflicts<'a>(
+    context: &mut Context<'a, impl AsRef<Path>>,
+    recurse: bool,
+) -> io::Result<impl Iterator<Item = (Imprint, Conflict<'a>)>> {
+    let base_files: HashSet<&Path> = super::list_entries(context.root, recurse)
         .filter_map(|entry| entry.path().canonicalize().ok())
-        .map(|entry| &**paths.alloc(entry))
+        .map(|entry| &**context.paths.alloc(entry))
         .collect();
-    let compare_files: HashSet<_> = compare
+
+    // We're going to attempt to prevent files in the basic set from appearing in this set.
+    let compare_files: HashSet<_> = context
+        .compare_to
         .iter()
         .flat_map(|path| super::list_entries(path, recurse))
         .filter_map(|entry| entry.path().canonicalize().ok())
-        .map(|entry| &**paths.alloc(entry))
+        .map(|entry| &**context.paths.alloc(entry))
         .collect();
 
     let compare_files: Vec<_> = compare_files.difference(&base_files).copied().collect();
-    let base_files_by_length: HashMap<_, _> = by_length(base_files.iter().copied())?;
+    let base_files_by_length: HashMap<_, _> = by_length(base_files.into_iter())?;
     let mut files_by_imprint: HashMap<Imprint, Conflict> = HashMap::new();
 
     // Here be dragons.
@@ -51,12 +94,19 @@ pub fn process(
     // onto the conflict.base_files member. This process is performed for each path in the
     // comparison set.
 
+    // We need this duplicate filter because we will get re-imprint base files for each file of
+    // matching length in the comparison set, and this is... undesirable.
+    let mut duplicate_filter = HashSet::new();
+
     for path in compare_files {
         let meta: Meta = path.metadata()?.into();
         if let Some(potential_conflicts) = base_files_by_length.get(&meta.len) {
             let imprints = potential_conflicts
                 .iter()
-                .filter_map(|&path| Imprint::new(path).ok().map(|imprint| (path, imprint)));
+                .copied()
+                .filter(|&path| duplicate_filter.insert(path))
+                .filter_map(|path| Imprint::new(path).ok().map(|imprint| (path, imprint)));
+
             for (base_path, imprint) in imprints {
                 files_by_imprint
                     .entry(imprint)
@@ -74,33 +124,17 @@ pub fn process(
         // file and compare file have the same filename. (As of May 26, 2022.)
 
         let imprint = Imprint::new(path)?;
-        if let Entry::Occupied(mut conflicts) = files_by_imprint.entry(imprint) {
+        if let EntryRef::Occupied(mut conflicts) = files_by_imprint.entry_ref(&imprint) {
             conflicts.get_mut().compare_files.push(path);
-            cache.insert(path, meta);
+            context.cache.insert(path, meta);
         }
     }
 
-    let conflicts = files_by_imprint
+    // panic!();
+
+    Ok(files_by_imprint
         .into_iter()
-        .filter(|entry| !entry.1.compare_files.is_empty());
-
-    if force {
-        let mut count = 0usize;
-        let mut size = 0u64;
-        for path in conflicts
-            .into_iter()
-            .flat_map(|entry| entry.1.compare_files)
-        {
-            fs::remove_file(path)?;
-            count += 1;
-            size += cache.get(path).map(|meta| meta.len).unwrap_or_default();
-        }
-        println!("Removed {} files ({})", count, size.fmt_size(Conventional));
-    } else {
-        pretty_print_conflicts(conflicts, &cache)?;
-    }
-
-    Ok(())
+        .filter(|entry| !entry.1.compare_files.is_empty()))
 }
 
 fn pretty_print_conflicts<'a>(
@@ -117,13 +151,13 @@ fn pretty_print_conflicts<'a>(
             * conflict
                 .compare_files
                 .first()
-                .and_then(|&path| cache.get(path).map(|cx| cx.len))
+                .copied()
+                .and_then(|path| cache.get(path).map(|cx| cx.len))
                 .unwrap_or_default();
 
         writeln!(
             handle,
-            "{}\n----------------------------------------------------------------",
-            imprint,
+            "{imprint}\n-------------------------- base files --------------------------",
         )?;
 
         for &path in &conflict.base_files {
@@ -132,7 +166,7 @@ fn pretty_print_conflicts<'a>(
 
         writeln!(
             handle,
-            "================================================================",
+            "-------------------------- duplicates --------------------------",
         )?;
 
         for &path in &conflict.compare_files {
@@ -143,8 +177,7 @@ fn pretty_print_conflicts<'a>(
 
     writeln!(
         handle,
-        "{} duplicates ({})",
-        count,
+        "{count} duplicates ({})",
         size.fmt_size(Conventional)
     )?;
 
@@ -161,4 +194,62 @@ where
         map.entry(meta.len()).or_insert_with(Vec::new).push(path);
     }
     Ok(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use bumpalo::Bump;
+
+    use crate::meta::Metacache;
+
+    use super::{get_conflicts, Context};
+
+    #[test]
+    fn subtree_comparisons_ignore_subtree_files() {
+        let paths = Bump::new();
+        let mut context = Context {
+            root: "./resource/test-folder/subfolder",
+            compare_to: &["./resource/test-folder"],
+            paths: &paths,
+            cache: Metacache::new(),
+        };
+
+        let actual: Vec<_> = get_conflicts(&mut context, true)
+            .unwrap()
+            .flat_map(|(_, conflict)| conflict.compare_files)
+            .collect();
+        let expected = &[Path::new("./resource/test-folder/a.txt")
+            .canonicalize()
+            .unwrap()];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn subtree_comparisons_do_not_result_in_duplicate_base_files() {
+        let paths = Bump::new();
+        let mut context = Context {
+            root: "./resource/test-folder/subfolder",
+            compare_to: &["./resource/test-folder"],
+            paths: &paths,
+            cache: Metacache::new(),
+        };
+
+        let actual: Vec<_> = get_conflicts(&mut context, true)
+            .unwrap()
+            .flat_map(|(_, conflict)| conflict.base_files)
+            .collect();
+        let expected = &[
+            Path::new("./resource/test-folder/subfolder/sub-a.txt")
+                .canonicalize()
+                .unwrap(),
+            Path::new("./resource/test-folder/subfolder/sub-a-copy.txt")
+                .canonicalize()
+                .unwrap(),
+        ];
+
+        assert_eq!(actual, expected);
+    }
 }

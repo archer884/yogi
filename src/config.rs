@@ -4,33 +4,34 @@ use clap::Parser;
 
 /// Examine a directory for duplicated files and remove them.
 #[derive(Clone, Debug, Parser)]
-#[clap(version)]
+#[command(version)]
 pub struct Args {
     /// The root path to be examined
     /// Defaults to "."
     path: Option<String>,
 
     /// Additional paths (files in root path will be preferred)
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub compare: Vec<String>,
 
     /// Remove duplicate files.
-    #[clap(short = 'f', long = "force")]
+    #[arg(short, long)]
     pub force: bool,
 
     /// Keep 'oldest' or 'newest' files instead of 'most descriptive.'
     ///
     /// Note that this only applies to the single tree process.
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub sort: Option<SortOrder>,
 
     /// Do not recurse into subdirectories (applies to root path)
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub no_recurse: bool,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub enum SortOrder {
+    #[default]
     Descriptive,
     Newest,
     Oldest,
@@ -70,11 +71,11 @@ impl Args {
     }
 
     pub fn path(&self) -> &str {
-        self.path.as_ref().map(AsRef::as_ref).unwrap_or(".")
+        self.path.as_deref().unwrap_or(".")
     }
 
     pub fn sort_order(&self) -> SortOrder {
-        self.sort.unwrap_or(SortOrder::Descriptive)
+        self.sort.unwrap_or_default()
     }
 
     pub fn recurse(&self) -> bool {

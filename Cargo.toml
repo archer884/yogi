@@ -1,12 +1,12 @@
 [package]
 name = "yogi"
-version = "0.2.21"
+version = "0.3.0"
 authors = ["J/A <archer884@gmail.com>"]
 edition = "2021"
 
 [dependencies]
 bumpalo = "3.16.0"
-clap = { version = "4.5.8", features = ["derive"] }
+clap = { version = "4.5.8", features = ["derive", "wrap_help"] }
 fmtsize = { git = "https://github.com/archer884/fmtsize" }
 hashbrown = "0.14.5"
 imprint = { git = "https://github.com/archer884/imprint" }
@@ -14,4 +14,9 @@ regex = "1.10.5"
 walkdir = "2.5.0"
 
 [profile.release]
-lto = "thin"
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+debug = 0

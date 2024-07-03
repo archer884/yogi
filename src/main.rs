@@ -12,17 +12,17 @@ use meta::Metacache;
 use walkdir::{DirEntry, WalkDir};
 
 fn main() {
-    if let Err(e) = run(&Args::parse()) {
+    if let Err(e) = run(Args::parse()) {
         eprintln!("{}", e);
         std::process::exit(1);
     }
 }
 
-fn run(opts: &Args) -> io::Result<()> {
-    if opts.compare.is_empty() {
-        single::process(opts.path(), opts.sort_order(), opts.force, opts.recurse())
+fn run(args: Args) -> io::Result<()> {
+    if args.compare.is_empty() {
+        single::process(args.path(), args.sort_order(), args.force, args.recurse())
     } else {
-        multiple::process(opts.path(), &opts.compare, opts.force, opts.recurse())
+        multiple::process(args.path(), &args.compare, args.force, args.recurse())
     }
 }
 

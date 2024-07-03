@@ -47,9 +47,9 @@ fn get_sorter<'a>(sort: SortOrder, cache: &'a Metacache<'a>) -> Box<dyn PathSort
 }
 
 pub fn process(path: &str, sort: SortOrder, force: bool, recurse: bool) -> io::Result<()> {
-    // Do not reorder these two variables, because it will cause stupidly confusing lifetime
-    // errors to appear.
+    // We need the arena to be allocated first so that it can be dropped last.
     let paths = Bump::new();
+
     let mut metacache = Metacache::new();
 
     let conflicts_by_len = build_conflicts_by_length(path, &paths, &mut metacache, recurse)?;
