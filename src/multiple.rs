@@ -1,5 +1,5 @@
 use std::{
-    ffi::OsString,
+    ffi::OsStr,
     fs,
     io::{self, Write},
     path::Path,
@@ -23,7 +23,7 @@ pub fn process(
     compare: &[impl AsRef<Path>],
     force: bool,
     recurse: bool,
-    ignore: &[OsString],
+    ignore: &[&OsStr],
 ) -> io::Result<()> {
     let paths = Bump::new();
     let mut context = Context {
@@ -65,7 +65,7 @@ struct Context<'a, T> {
     compare_to: &'a [T],
     paths: &'a Bump,
     cache: Metacache<'a>,
-    ignore: &'a [OsString],
+    ignore: &'a [&'a OsStr],
 }
 
 fn get_conflicts<'a>(

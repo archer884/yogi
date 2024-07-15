@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, ffi::OsString, io, path::Path};
+use std::{cmp::Reverse, ffi::OsStr, io, path::Path};
 
 use bumpalo::Bump;
 use fmtsize::{Conventional, FmtSize};
@@ -51,7 +51,7 @@ pub fn process(
     sort: SortOrder,
     force: bool,
     recurse: bool,
-    ignored: &[OsString],
+    ignored: &[&OsStr],
 ) -> io::Result<()> {
     // We need the arena to be allocated first so that it can be dropped last.
     let paths = Bump::new();
@@ -84,7 +84,7 @@ fn build_conflicts_by_length<'a>(
     path_src: &'a Bump,
     metacache: &mut Metacache<'a>,
     recurse: bool,
-    ignored: &[OsString],
+    ignored: &[&OsStr],
 ) -> io::Result<impl Iterator<Item = &'a Path>> {
     let mut candidates = HashMap::new();
 

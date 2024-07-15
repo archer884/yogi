@@ -1,4 +1,4 @@
-use std::{ffi::OsString, fs, io, path::Path};
+use std::{ffi::OsStr, fs, io, path::Path};
 
 mod config;
 mod meta;
@@ -19,7 +19,7 @@ fn main() {
 }
 
 fn run(args: Args) -> io::Result<()> {
-    let ignore: Vec<_> = args.ignore.iter().map(OsString::from).collect();
+    let ignore: Vec<_> = args.ignore.iter().map(OsStr::new).collect();
 
     if args.compare.is_empty() {
         single::process(
@@ -40,20 +40,31 @@ fn run(args: Args) -> io::Result<()> {
     }
 }
 
-fn list_entries(
+fn list_entries<'a>(
     root: impl AsRef<Path>,
     recurse: bool,
-    ignore: &[OsString],
-) -> impl Iterator<Item = DirEntry> + '_ {
-    fn is_file(entry: &DirEntry) -> bool {
-        entry.file_type().is_file()
+    ignore: &'a [&OsStr],
+) -> impl Iterator<Item = DirEntry> + 'a {
+    fn is_hidden(path: &Path) -> bool {
+        let Some(file_name) = path.file_name() else {
+            return false;
+        };
+
+        file_name
+            .as_encoded_bytes()
+            .starts_with(OsStr::new(".").as_encoded_bytes())
     }
 
-    fn is_ignored(entry: &DirEntry, ignore: &[OsString]) -> bool {
-        entry
-            .path()
-            .extension()
-            .map_or(false, |ext| ignore.iter().any(|i| i == ext))
+    fn is_file(entry: &DirEntry) -> bool {
+        entry.file_type().is_file() && entry.path().ancestors().all(|path| !is_hidden(path))
+    }
+
+    fn is_ignored(entry: &DirEntry, ignore: &[&OsStr]) -> bool {
+        let Some(extension) = entry.path().extension() else {
+            return false;
+        };
+
+        ignore.iter().copied().any(|i| i == extension)
     }
 
     let walker = if recurse {
