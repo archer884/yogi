@@ -1,4 +1,4 @@
-use std::{fs, io, path::Path};
+use std::{ffi::OsString, fs, io, path::Path};
 
 mod config;
 mod meta;
@@ -19,30 +19,53 @@ fn main() {
 }
 
 fn run(args: Args) -> io::Result<()> {
+    let ignore: Vec<_> = args.ignore.iter().map(OsString::from).collect();
+
     if args.compare.is_empty() {
-        single::process(args.path(), args.sort_order(), args.force, args.recurse())
+        single::process(
+            args.path(),
+            args.sort_order(),
+            args.force,
+            args.recurse(),
+            &ignore,
+        )
     } else {
-        multiple::process(args.path(), &args.compare, args.force, args.recurse())
+        multiple::process(
+            args.path(),
+            &args.compare,
+            args.force,
+            args.recurse(),
+            &ignore,
+        )
     }
 }
 
-fn list_entries(root: impl AsRef<Path>, recurse: bool) -> impl Iterator<Item = DirEntry> {
+fn list_entries(
+    root: impl AsRef<Path>,
+    recurse: bool,
+    ignore: &[OsString],
+) -> impl Iterator<Item = DirEntry> + '_ {
     fn is_file(entry: &DirEntry) -> bool {
         entry.file_type().is_file()
     }
 
-    if recurse {
-        WalkDir::new(root)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(is_file)
-    } else {
-        WalkDir::new(root)
-            .max_depth(1)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(is_file)
+    fn is_ignored(entry: &DirEntry, ignore: &[OsString]) -> bool {
+        entry
+            .path()
+            .extension()
+            .map_or(false, |ext| ignore.iter().any(|i| i == ext))
     }
+
+    let walker = if recurse {
+        WalkDir::new(root).into_iter()
+    } else {
+        WalkDir::new(root).max_depth(1).into_iter()
+    };
+
+    walker
+        .filter_map(Result::ok)
+        .filter(is_file)
+        .filter(move |entry| !is_ignored(entry, ignore))
 }
 
 fn deconflict<'a>(

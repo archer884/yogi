@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, io, path::Path};
+use std::{cmp::Reverse, ffi::OsString, io, path::Path};
 
 use bumpalo::Bump;
 use fmtsize::{Conventional, FmtSize};
@@ -46,13 +46,20 @@ fn get_sorter<'a>(sort: SortOrder, cache: &'a Metacache<'a>) -> Box<dyn PathSort
     }
 }
 
-pub fn process(path: &str, sort: SortOrder, force: bool, recurse: bool) -> io::Result<()> {
+pub fn process(
+    path: &str,
+    sort: SortOrder,
+    force: bool,
+    recurse: bool,
+    ignored: &[OsString],
+) -> io::Result<()> {
     // We need the arena to be allocated first so that it can be dropped last.
     let paths = Bump::new();
 
     let mut metacache = Metacache::new();
 
-    let conflicts_by_len = build_conflicts_by_length(path, &paths, &mut metacache, recurse)?;
+    let conflicts_by_len =
+        build_conflicts_by_length(path, &paths, &mut metacache, recurse, ignored)?;
     let mut conflicts_by_imprint = build_conflicts_by_imprint(conflicts_by_len)?;
 
     // Sorting before deconfliction or formatting ensures that deconfliction behavior is
@@ -77,10 +84,11 @@ fn build_conflicts_by_length<'a>(
     path_src: &'a Bump,
     metacache: &mut Metacache<'a>,
     recurse: bool,
+    ignored: &[OsString],
 ) -> io::Result<impl Iterator<Item = &'a Path>> {
     let mut candidates = HashMap::new();
 
-    for entry in super::list_entries(path, recurse) {
+    for entry in super::list_entries(path, recurse, ignored) {
         let path = &**path_src.alloc(entry.path().to_owned());
         let meta: Meta = path.metadata()?.into();
         candidates

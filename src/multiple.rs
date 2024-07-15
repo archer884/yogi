@@ -1,4 +1,5 @@
 use std::{
+    ffi::OsString,
     fs,
     io::{self, Write},
     path::Path,
@@ -22,6 +23,7 @@ pub fn process(
     compare: &[impl AsRef<Path>],
     force: bool,
     recurse: bool,
+    ignore: &[OsString],
 ) -> io::Result<()> {
     let paths = Bump::new();
     let mut context = Context {
@@ -29,6 +31,7 @@ pub fn process(
         compare_to: compare,
         paths: &paths,
         cache: Metacache::new(),
+        ignore,
     };
 
     let conflicts = get_conflicts(&mut context, recurse)?;
@@ -62,13 +65,14 @@ struct Context<'a, T> {
     compare_to: &'a [T],
     paths: &'a Bump,
     cache: Metacache<'a>,
+    ignore: &'a [OsString],
 }
 
 fn get_conflicts<'a>(
     context: &mut Context<'a, impl AsRef<Path>>,
     recurse: bool,
 ) -> io::Result<impl Iterator<Item = (Imprint, Conflict<'a>)>> {
-    let base_files: HashSet<&Path> = super::list_entries(context.root, recurse)
+    let base_files: HashSet<&Path> = super::list_entries(context.root, recurse, context.ignore)
         .filter_map(|entry| entry.path().canonicalize().ok())
         .map(|entry| &**context.paths.alloc(entry))
         .collect();
@@ -77,7 +81,7 @@ fn get_conflicts<'a>(
     let compare_files: HashSet<_> = context
         .compare_to
         .iter()
-        .flat_map(|path| super::list_entries(path, recurse))
+        .flat_map(|path| super::list_entries(path, recurse, context.ignore))
         .filter_map(|entry| entry.path().canonicalize().ok())
         .map(|entry| &**context.paths.alloc(entry))
         .collect();
@@ -212,6 +216,7 @@ mod tests {
             compare_to: &["./resource/test-folder"],
             paths: &paths,
             cache: Metacache::new(),
+            ignore: &[],
         };
 
         let actual: Vec<_> = get_conflicts(&mut context, true)
@@ -233,6 +238,7 @@ mod tests {
             compare_to: &["./resource/test-folder"],
             paths: &paths,
             cache: Metacache::new(),
+            ignore: &[],
         };
 
         let actual: Vec<_> = get_conflicts(&mut context, true)

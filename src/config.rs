@@ -27,6 +27,10 @@ pub struct Args {
     /// Do not recurse into subdirectories (applies to root path)
     #[arg(short, long)]
     pub no_recurse: bool,
+
+    /// Ignore these extensions
+    #[arg(short, long, env("YOGI_IGNORE"), value_delimiter(','))]
+    pub ignore: Vec<String>,
 }
 
 #[derive(Copy, Clone, Debug, Default)]
