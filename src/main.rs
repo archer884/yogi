@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, fs, io, path::Path};
+use std::{borrow::Cow, ffi::OsStr, fs, io, path::Path};
 
 mod config;
 mod meta;
@@ -45,6 +45,15 @@ fn list_entries<'a>(
     recurse: bool,
     ignore: &'a [&Path],
 ) -> Box<dyn Iterator<Item = DirEntry> + 'a> {
+    let ignore: Vec<_> = ignore
+        .iter()
+        .map(|&path| {
+            path.canonicalize()
+                .map(Cow::from)
+                .unwrap_or_else(|_| Cow::from(path))
+        })
+        .collect();
+
     fn is_hidden(path: &Path) -> bool {
         let Some(file_name) = path.file_name() else {
             return false;
@@ -59,15 +68,16 @@ fn list_entries<'a>(
         entry.file_type().is_file() && entry.path().ancestors().all(|path| !is_hidden(path))
     }
 
-    fn is_ignored(entry: &DirEntry, ignore: &[&Path]) -> bool {
-        entry.path().is_dir() && ignore.contains(&entry.path())
-    }
-
     if recurse {
         Box::new(
             WalkDir::new(root)
                 .into_iter()
-                .filter_entry(|entry| entry.path().is_file() || !is_ignored(entry, ignore))
+                .filter_entry(move |entry| {
+                    entry.path().is_file()
+                        || !ignore
+                            .iter()
+                            .any(|ignored_path| ignored_path.as_ref() == entry.path())
+                })
                 .filter_map(Result::ok)
                 .filter(is_file),
         )
