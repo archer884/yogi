@@ -6,7 +6,7 @@ use std::{
 
 use bumpalo::Bump;
 use fmtsize::{Conventional, FmtSize};
-use hashbrown::{hash_map::EntryRef, HashMap, HashSet};
+use hashbrown::{HashMap, HashSet, hash_map::EntryRef};
 use imprint::Imprint;
 
 use crate::meta::{Meta, Metacache};
@@ -67,10 +67,10 @@ struct Context<'a, T> {
     ignore: &'a [&'a Path],
 }
 
-fn get_conflicts<'a>(
-    context: &mut Context<'a, impl AsRef<Path>>,
+fn get_conflicts<'a, T: AsRef<Path>>(
+    context: &mut Context<'a, T>,
     recurse: bool,
-) -> io::Result<impl Iterator<Item = (Imprint, Conflict<'a>)>> {
+) -> io::Result<impl Iterator<Item = (Imprint, Conflict<'a>)> + use<'a, T>> {
     let base_files: HashSet<&Path> = super::list_entries(context.root, recurse, context.ignore)
         .filter_map(|entry| entry.path().canonicalize().ok())
         .map(|entry| &**context.paths.alloc(entry))
@@ -205,7 +205,7 @@ mod tests {
 
     use crate::meta::Metacache;
 
-    use super::{get_conflicts, Context};
+    use super::{Context, get_conflicts};
 
     #[test]
     fn subtree_comparisons_ignore_subtree_files() {
