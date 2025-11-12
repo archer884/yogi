@@ -28,8 +28,8 @@ pub struct Args {
     #[arg(short, long)]
     pub no_recurse: bool,
 
-    /// Ignore these extensions
-    #[arg(short, long, env("YOGI_IGNORE"), value_delimiter(','))]
+    /// Ignore these directories
+    #[arg(short, long, value_delimiter(','))]
     pub ignore: Vec<String>,
 }
 

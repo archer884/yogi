@@ -19,7 +19,7 @@ fn main() {
 }
 
 fn run(args: Args) -> io::Result<()> {
-    let ignore: Vec<_> = args.ignore.iter().map(OsStr::new).collect();
+    let ignore: Vec<_> = args.ignore.iter().map(Path::new).collect();
 
     if args.compare.is_empty() {
         single::process(
@@ -43,8 +43,8 @@ fn run(args: Args) -> io::Result<()> {
 fn list_entries<'a>(
     root: impl AsRef<Path>,
     recurse: bool,
-    ignore: &'a [&OsStr],
-) -> impl Iterator<Item = DirEntry> + 'a {
+    ignore: &'a [&Path],
+) -> Box<dyn Iterator<Item = DirEntry> + 'a> {
     fn is_hidden(path: &Path) -> bool {
         let Some(file_name) = path.file_name() else {
             return false;
@@ -59,24 +59,27 @@ fn list_entries<'a>(
         entry.file_type().is_file() && entry.path().ancestors().all(|path| !is_hidden(path))
     }
 
-    fn is_ignored(entry: &DirEntry, ignore: &[&OsStr]) -> bool {
-        let Some(extension) = entry.path().extension() else {
-            return false;
-        };
-
-        ignore.iter().copied().any(|i| i == extension)
+    fn is_ignored(entry: &DirEntry, ignore: &[&Path]) -> bool {
+        entry.path().is_dir() && ignore.contains(&entry.path())
     }
 
-    let walker = if recurse {
-        WalkDir::new(root).into_iter()
+    if recurse {
+        Box::new(
+            WalkDir::new(root)
+                .into_iter()
+                .filter_entry(|entry| entry.path().is_file() || !is_ignored(entry, ignore))
+                .filter_map(Result::ok)
+                .filter(is_file),
+        )
     } else {
-        WalkDir::new(root).max_depth(1).into_iter()
-    };
-
-    walker
-        .filter_map(Result::ok)
-        .filter(is_file)
-        .filter(move |entry| !is_ignored(entry, ignore))
+        Box::new(
+            WalkDir::new(root)
+                .max_depth(1)
+                .into_iter()
+                .filter_map(Result::ok)
+                .filter(is_file),
+        )
+    }
 }
 
 fn deconflict<'a>(
